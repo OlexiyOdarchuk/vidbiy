@@ -35,6 +35,7 @@ class WatchService : Service() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        RegionTreeRepo.init(this)
         player = AlarmPlayer(this)
         nm = getSystemService(NotificationManager::class.java)
         Notifications.createChannels(this)
@@ -78,7 +79,7 @@ class WatchService : Service() {
     private fun startWatching() {
         job?.cancel()
         job = scope.launch {
-            val region = Regions.byUid(prefs.regionUid)
+            val region = prefs.region
             var lastOk = System.currentTimeMillis()
             var phase = if (prefs.sawAlert) Phase.ALERT else Phase.WAITING_ALERT
 

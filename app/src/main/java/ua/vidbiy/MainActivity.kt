@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         Notifications.createChannels(this)
+        RegionTreeRepo.init(this)
         val prefs = Prefs(this)
 
         val actions = Actions(

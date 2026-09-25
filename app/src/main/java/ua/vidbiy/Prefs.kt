@@ -10,9 +10,31 @@ class Prefs(context: Context) {
         get() = sp.getString("token", "") ?: ""
         set(value) = sp.edit().putString("token", value.trim()).apply()
 
-    var regionUid: Int
-        get() = sp.getInt("region", Regions.DEFAULT_UID)
-        set(value) = sp.edit().putInt("region", value).apply()
+    var region: Region
+        get() {
+            val placeId = sp.getString("place_id", null) ?: return Regions.byUid(sp.getInt("region", Regions.DEFAULT_UID))
+            return Region(
+                uid = null,
+                name = sp.getString("place_name", "") ?: "",
+                sirenId = placeId,
+                ubillingName = null,
+                detail = sp.getString("place_detail", null),
+            )
+        }
+        set(value) {
+            val edit = sp.edit()
+            if (value.uid != null) {
+                edit.putInt("region", value.uid).remove("place_id").remove("place_name").remove("place_detail")
+            } else {
+                edit.putString("place_id", value.sirenId).putString("place_name", value.name)
+                    .putString("place_detail", value.detail)
+            }
+            edit.apply()
+        }
+
+    var onboarded: Boolean
+        get() = sp.getBoolean("onboarded", false)
+        set(value) = sp.edit().putBoolean("onboarded", value).apply()
 
     var cutoffMinutes: Int
         get() = sp.getInt("cutoff", -1)

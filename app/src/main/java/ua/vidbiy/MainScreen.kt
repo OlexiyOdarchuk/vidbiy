@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -24,20 +25,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WifiOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,7 +58,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class SettingsState(private val prefs: Prefs) {
-    var regionUid by mutableIntStateOf(prefs.regionUid)
+    var region by mutableStateOf(prefs.region)
         private set
     var cutoff by mutableIntStateOf(prefs.cutoffMinutes)
         private set
@@ -70,11 +69,9 @@ class SettingsState(private val prefs: Prefs) {
     var token by mutableStateOf(prefs.token)
         private set
 
-    val region get() = Regions.byUid(regionUid)
-
-    fun updateRegion(value: Int) {
-        regionUid = value
-        prefs.regionUid = value
+    fun updateRegion(value: Region) {
+        region = value
+        prefs.region = value
     }
 
     fun updateCutoff(value: Int) {
@@ -107,55 +104,69 @@ class Actions(
     val test: () -> Unit,
 )
 
+private enum class Screen { HOME, SETTINGS, REGION }
+
 @Composable
 fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
     val settings = remember { SettingsState(prefs) }
     val state by WatchRepo.state.collectAsStateWithLifecycle()
-    var inSettings by remember { mutableStateOf(false) }
+    var onboarded by remember { mutableStateOf(prefs.onboarded) }
+    var screen by remember { mutableStateOf(Screen.HOME) }
+    var regionReturn by remember { mutableStateOf(Screen.HOME) }
     var dialog by remember { mutableStateOf<AppDialog?>(null) }
 
-    BackHandler(enabled = inSettings) { inSettings = false }
+    if (!onboarded) {
+        Onboarding(settings, permissions, actions) {
+            prefs.onboarded = true
+            onboarded = true
+        }
+        return
+    }
+
+    BackHandler(enabled = screen != Screen.HOME) {
+        screen = if (screen == Screen.REGION) regionReturn else Screen.HOME
+    }
+    val openDialog: (AppDialog) -> Unit = {
+        if (it == AppDialog.REGION) {
+            regionReturn = screen
+            screen = Screen.REGION
+        } else {
+            dialog = it
+        }
+    }
 
     NightBackground {
         AnimatedContent(
-            targetState = inSettings,
+            targetState = screen,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "screen",
-        ) { showSettings ->
-            if (showSettings) {
-                SettingsScreen(
+        ) { current ->
+            when (current) {
+                Screen.SETTINGS -> SettingsScreen(
                     state = state,
                     settings = settings,
                     permissions = permissions,
                     actions = actions,
-                    onBack = { inSettings = false },
-                    onDialog = { dialog = it },
+                    onBack = { screen = Screen.HOME },
+                    onDialog = openDialog,
                 )
-            } else {
-                HomeScreen(
+                Screen.REGION -> RegionScreen(
+                    settings = settings,
+                    onBack = { screen = regionReturn },
+                )
+                Screen.HOME -> HomeScreen(
                     state = state,
                     settings = settings,
                     permissions = permissions,
                     actions = actions,
-                    onOpenSettings = { inSettings = true },
-                    onDialog = { dialog = it },
+                    onOpenSettings = { screen = Screen.SETTINGS },
+                    onDialog = openDialog,
                 )
             }
         }
     }
 
     when (dialog) {
-        AppDialog.REGION -> ChoiceDialog(
-            title = "Регіон",
-            options = Regions.all.map { it.uid to it.name },
-            selected = settings.regionUid,
-            onSelect = {
-                settings.updateRegion(it)
-                dialog = null
-            },
-            onDismiss = { dialog = null },
-        )
-
         AppDialog.SOURCE -> ChoiceDialog(
             title = "Основне джерело",
             options = Source.entries.map {
@@ -182,7 +193,33 @@ fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
             onDismiss = { dialog = null },
         )
 
-        null -> Unit
+        AppDialog.REGION, null -> Unit
+    }
+}
+
+@Composable
+private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Назад")
+            }
+            Spacer(Modifier.width(4.dp))
+            Text("Регіон", style = MaterialTheme.typography.titleLarge)
+        }
+        RegionPicker(
+            selected = settings.region,
+            onPick = {
+                settings.updateRegion(it)
+                onBack()
+            },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -216,7 +253,13 @@ private fun HomeScreen(
                 }
             }
 
-            Hero(state, modifier = Modifier.padding(vertical = 24.dp))
+            val (onOrb, hint) = when {
+                idle && !permissions.notifications -> actions.requestNotifications to "Торкніться, щоб дозволити сповіщення"
+                idle -> actions.arm to "Торкніться, щоб увімкнути"
+                state.phase == Phase.RINGING || state.phase == Phase.SNOOZED -> actions.stop to "Торкніться, щоб вимкнути"
+                else -> actions.stop to "Торкніться, щоб скасувати"
+            }
+            Hero(state, onOrb, hint, modifier = Modifier.padding(vertical = 24.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PermissionBanner(permissions, actions)
@@ -238,7 +281,6 @@ private fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                MainAction(state.phase, permissions.notifications, actions)
             }
         }
     }
@@ -285,7 +327,7 @@ private fun RegionChip(name: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Hero(state: WatchState, modifier: Modifier = Modifier) {
+private fun Hero(state: WatchState, onOrbClick: () -> Unit, hint: String, modifier: Modifier = Modifier) {
     val title = when (state.phase) {
         Phase.IDLE -> "Будильник вимкнено"
         Phase.WAITING_ALERT -> "Очікування тривоги"
@@ -296,12 +338,14 @@ private fun Hero(state: WatchState, modifier: Modifier = Modifier) {
     val subtitle = when {
         state.phase == Phase.RINGING -> state.reason
         state.text.isNotEmpty() -> state.text
-        else -> "Увімкніть, якщо тривога застала під час сну. Будильник пролунає одразу після відбою."
+        else -> "Якщо тривога застала під час сну, будильник пролунає одразу після відбою."
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {
-        StatusOrb(state.phase)
-        Spacer(Modifier.height(24.dp))
+        StatusOrb(state.phase, size = 240.dp, onClick = onOrbClick, clickLabel = hint)
+        Spacer(Modifier.height(12.dp))
+        TouchHint(hint)
+        Spacer(Modifier.height(20.dp))
         Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
@@ -350,38 +394,6 @@ private fun InfoTile(
             Spacer(Modifier.height(10.dp))
             Text(label, style = MaterialTheme.typography.labelMedium, color = Night.TextDim)
             Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun MainAction(phase: Phase, canNotify: Boolean, actions: Actions) {
-    when (phase) {
-        Phase.IDLE -> Button(
-            onClick = actions.arm,
-            enabled = canNotify,
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(containerColor = Night.Amber, contentColor = Night.OnAmber),
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-        ) {
-            Icon(Icons.Rounded.Alarm, contentDescription = null)
-            Spacer(Modifier.width(10.dp))
-            Text("Розбудити після відбою", style = MaterialTheme.typography.titleMedium)
-        }
-
-        else -> OutlinedButton(
-            onClick = actions.stop,
-            shape = CircleShape,
-            border = BorderStroke(1.dp, Night.TextDim.copy(alpha = 0.5f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Night.Text),
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-        ) {
-            Icon(Icons.Rounded.Close, contentDescription = null)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                if (phase == Phase.RINGING || phase == Phase.SNOOZED) "Вимкнути будильник" else "Скасувати",
-                style = MaterialTheme.typography.titleMedium,
-            )
         }
     }
 }

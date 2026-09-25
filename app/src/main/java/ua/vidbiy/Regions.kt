@@ -1,14 +1,17 @@
 package ua.vidbiy
 
 /**
- * [uid] — UID в alerts.in.ua (він же ключ налаштувань), [sirenId] — regionId в siren.pp.ua / ukrainealarm,
- * [ubillingName] — ключ у відповіді ubilling. null — джерело цей регіон не підтримує.
+ * Місце, за яким стежить будильник: область зі статичного списку або район/громада з дерева siren.
+ * [uid] — UID області в alerts.in.ua (null для району чи громади), [sirenId] — regionId у siren.pp.ua,
+ * [ubillingName] — ключ у відповіді ubilling, [detail] — до якої області/району належить.
+ * null у полі джерела означає, що джерело це місце не підтримує.
  */
 data class Region(
-    val uid: Int,
+    val uid: Int?,
     val name: String,
     val sirenId: String? = uid.toString(),
     val ubillingName: String? = name,
+    val detail: String? = null,
 )
 
 object Regions {
@@ -43,6 +46,8 @@ object Regions {
         Region(26, "Чернівецька область"),
         Region(25, "Чернігівська область"),
     )
+
+    fun bySirenId(id: String): Region? = all.firstOrNull { it.sirenId == id }
 
     fun byUid(uid: Int): Region = all.firstOrNull { it.uid == uid } ?: all.first()
 }

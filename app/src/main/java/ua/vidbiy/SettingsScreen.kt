@@ -103,7 +103,7 @@ fun SettingsScreen(
             SettingsRow(
                 icon = Icons.Rounded.LocationOn,
                 title = "Регіон",
-                value = settings.region.name,
+                value = listOfNotNull(settings.region.name, settings.region.detail).joinToString(", "),
                 enabled = idle,
                 onClick = { onDialog(AppDialog.REGION) },
             )

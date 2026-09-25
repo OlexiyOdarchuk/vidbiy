@@ -43,8 +43,8 @@ object AlertsApi {
     fun fetchFrom(source: Source, region: Region, token: String): ApiResult =
         when (source) {
             Source.SIREN -> region.sirenId?.let { id ->
-                sirenDescendants(id)?.let { children ->
-                    get(source, "$SIREN/alerts") { parseSiren(it, id, children) }
+                RegionTreeRepo.get()?.let { tree ->
+                    get(source, "$SIREN/alerts") { parseSiren(it, id, tree.ancestors(id).toSet(), tree.descendants(id)) }
                 } ?: ApiResult.Error("${source.title}: немає зв'язку")
             }
             Source.UBILLING -> region.ubillingName?.let { name ->
@@ -54,8 +54,10 @@ object AlertsApi {
                 if (token.isBlank()) {
                     ApiResult.Error("${source.title}: не вказано ключ")
                 } else {
-                    get(source, "https://api.alerts.in.ua/v1/iot/active_air_raid_alerts/${region.uid}.json", token) {
-                        parseAlertsInUa(it)
+                    region.uid?.let { uid ->
+                        get(source, "https://api.alerts.in.ua/v1/iot/active_air_raid_alerts/$uid.json", token) {
+                            parseAlertsInUa(it)
+                        }
                     }
                 }
         } ?: ApiResult.Error("${source.title}: регіон не підтримується")
@@ -95,56 +97,18 @@ object AlertsApi {
             if (token != null) setRequestProperty("Authorization", "Bearer $token")
         }
 
-    // Тривоги в областях оголошують здебільшого по районах і громадах, тому потрібне дерево регіонів.
-    // Воно майже не змінюється — завантажується один раз за запуск.
-    private var sirenTree: Map<String, Set<String>>? = null
-
-    @Synchronized
-    private fun sirenDescendants(id: String): Set<String>? {
-        sirenTree?.let { return it[id].orEmpty() }
-        return try {
-            val conn = open("$SIREN/regions")
-            try {
-                if (conn.responseCode != 200) return null
-                val states = JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).getJSONArray("states")
-                val tree = HashMap<String, Set<String>>()
-                for (i in 0 until states.length()) {
-                    val state = states.getJSONObject(i)
-                    val ids = HashSet<String>()
-                    collectChildIds(state, ids)
-                    tree[state.getString("regionId")] = ids
-                }
-                sirenTree = tree
-                tree[id].orEmpty()
-            } finally {
-                conn.disconnect()
-            }
-        } catch (_: IOException) {
-            null
-        } catch (_: JSONException) {
-            null
-        }
-    }
-
-    private fun collectChildIds(node: JSONObject, into: MutableSet<String>) {
-        val children = node.optJSONArray("regionChildIds") ?: return
-        for (i in 0 until children.length()) {
-            val child = children.getJSONObject(i)
-            into += child.getString("regionId")
-            collectChildIds(child, into)
-        }
-    }
-
     // Лише регіони з активними тривогами: [{"regionId":"31", ..., "activeAlerts":[{"type":"AIR", ...}]}]
-    private fun parseSiren(body: String, id: String, children: Set<String>): AlertStatus {
+    // Тривоги оголошують на рівні області, району або громади. Для обраного місця тривога —
+    // це тривога в ньому самому або в тому, що його охоплює; тривога лише в його частині — часткова.
+    private fun parseSiren(body: String, id: String, ancestors: Set<String>, descendants: Set<String>): AlertStatus {
         val arr = JSONArray(body)
         var partial = false
         for (i in 0 until arr.length()) {
             val item = arr.getJSONObject(i)
             if ((item.optJSONArray("activeAlerts")?.length() ?: 0) == 0) continue
             val regionId = item.getString("regionId")
-            if (regionId == id) return AlertStatus.ACTIVE
-            if (regionId in children) partial = true
+            if (regionId == id || regionId in ancestors) return AlertStatus.ACTIVE
+            if (regionId in descendants) partial = true
         }
         return if (partial) AlertStatus.PARTIAL else AlertStatus.NONE
     }
