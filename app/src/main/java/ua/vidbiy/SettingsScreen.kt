@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -182,6 +183,14 @@ fun SettingsScreen(
                 title = "Перевірити звук будильника",
                 enabled = idle,
                 onClick = actions.test,
+            )
+            RowDivider()
+            val uriHandler = LocalUriHandler.current
+            SettingsRow(
+                icon = Icons.Rounded.Code,
+                title = "Відкритий код на GitHub",
+                value = "Код, повідомлення про помилки й ідеї",
+                onClick = { uriHandler.openUri("https://github.com/OlexiyOdarchuk/vidbiy") },
             )
         }
         Spacer(Modifier.height(24.dp))

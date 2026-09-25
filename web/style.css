@@ -373,3 +373,7 @@ dialog input[type="time"] {
 @media (min-width: 900px) and (max-height: 1000px) {
   .how { display: none !important; }
 }
+
+@media (min-width: 900px) and (min-height: 560px) {
+  .icon-btn.desktop-only { display: grid; }
+}
