@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Code
@@ -102,6 +103,17 @@ fun SettingsScreen(
 
         SectionHeader("Будильник")
         GlassCard {
+            SettingsRow(
+                icon = Icons.Rounded.Alarm,
+                title = "Будильник на час",
+                value = if (settings.scheduleEnabled) {
+                    "${AlarmScheduler.formatMinutes(settings.scheduleMinutes)} · ${AlarmScheduler.describeDays(settings.scheduleDays)}"
+                } else {
+                    "Вимкнено"
+                },
+                onClick = { onDialog(AppDialog.SCHEDULE) },
+            )
+            RowDivider()
             SettingsRow(
                 icon = Icons.Rounded.LocationOn,
                 title = "Регіон",

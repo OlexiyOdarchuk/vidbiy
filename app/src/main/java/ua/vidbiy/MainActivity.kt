@@ -69,7 +69,9 @@ class MainActivity : ComponentActivity() {
         Notifications.createChannels(this)
         RegionTreeRepo.init(this)
         val prefs = Prefs(this)
-        settings = SettingsState(prefs)
+        settings = SettingsState(prefs) { AlarmScheduler.schedule(this) }
+        // Будильник за розкладом міг загубитися (примусова зупинка програми) — ставимо заново.
+        AlarmScheduler.schedule(this)
 
         val actions = Actions(
             requestNotifications = {
@@ -82,6 +84,7 @@ class MainActivity : ComponentActivity() {
             test = { WatchService.test(this) },
             pickSystemSound = ::pickSystemSound,
             pickCustomSound = { customSoundPicker.launch(arrayOf("audio/*")) },
+            openExactAlarmSettings = ::openExactAlarmSettings,
         )
 
         setContent {
@@ -93,6 +96,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (::settings.isInitialized) settings.reloadSchedule()
         permissions = readPermissions()
     }
 
@@ -113,6 +117,12 @@ class MainActivity : ComponentActivity() {
             startActivity(
                 Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
             )
+        }
+    }
+
+    private fun openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
         }
     }
 

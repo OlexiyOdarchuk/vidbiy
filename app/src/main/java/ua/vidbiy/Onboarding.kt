@@ -30,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -259,6 +260,12 @@ private fun TourStep(onDone: () -> Unit) {
             "Кожні 20 секунд вона перевіряє стан тривоги. Щойно настане відбій, пролунає гучний будильник, навіть у беззвучному режимі.",
         ) {
             StatusOrb(Phase.ALERT, size = 200.dp)
+        },
+        TourPage(
+            "Або звичайний будильник",
+            "Поставте час, наприклад 07:30. Якщо тоді тривоги немає, він задзвонить як звичайний, а якщо триває — розбудить після відбою.",
+        ) {
+            DemoTile(Icons.Rounded.Alarm, "Будильник на час", "07:30 · Будні", Modifier.widthIn(min = 200.dp))
         },
         TourPage(
             "Налаштуйте під себе",

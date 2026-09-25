@@ -50,6 +50,11 @@ class WatchService : Service() {
                 startWatching()
             }
 
+            ACTION_SCHEDULED -> {
+                goForeground("Будильник о ${prefs.scheduleLabel}: перевірка тривоги…")
+                startWatching()
+            }
+
             ACTION_TEST -> {
                 goForeground("Перевірка звуку")
                 job?.cancel()
@@ -80,7 +85,8 @@ class WatchService : Service() {
         job?.cancel()
         job = scope.launch {
             val region = prefs.region
-            var lastOk = System.currentTimeMillis()
+            val startedAt = System.currentTimeMillis()
+            var lastOk = startedAt
             var phase = if (prefs.sawAlert) Phase.ALERT else Phase.WAITING_ALERT
 
             while (isActive) {
@@ -98,14 +104,23 @@ class WatchService : Service() {
                         if (result.status != AlertStatus.NONE) {
                             prefs.sawAlert = true
                             phase = Phase.ALERT
-                            val text = if (result.status == AlertStatus.PARTIAL) {
-                                "Тривога в частині регіону. Будильник пролунає після відбою в усьому регіоні."
-                            } else {
-                                "Будильник пролунає після відбою."
+                            val partial = result.status == AlertStatus.PARTIAL
+                            val text = when {
+                                prefs.scheduleRun && partial ->
+                                    "Будильник о ${prefs.scheduleLabel} чекає: тривога в частині регіону. Розбудить після відбою в усьому регіоні."
+                                prefs.scheduleRun ->
+                                    "Будильник о ${prefs.scheduleLabel} чекає: триває тривога. Розбудить після відбою."
+                                partial ->
+                                    "Тривога в частині регіону. Будильник пролунає після відбою в усьому регіоні."
+                                else -> "Будильник пролунає після відбою."
                             }
                             update(phase, text, via)
                         } else if (prefs.sawAlert) {
                             ring("Відбій тривоги: ${region.name}")
+                            return@launch
+                        } else if (prefs.scheduleRun) {
+                            // Настав час будильника, а тривоги немає — будимо, як звичайний будильник.
+                            ring("Будильник о ${prefs.scheduleLabel}")
                             return@launch
                         } else {
                             phase = Phase.WAITING_ALERT
@@ -114,6 +129,13 @@ class WatchService : Service() {
                     }
 
                     is ApiResult.Error -> {
+                        // Не знаємо, чи є тривога, — краще розбудити, ніж проспати.
+                        if (prefs.scheduleRun && !prefs.sawAlert &&
+                            System.currentTimeMillis() - startedAt >= SCHEDULE_CHECK_MS
+                        ) {
+                            ring("Будильник о ${prefs.scheduleLabel} (не вдалося перевірити тривогу)")
+                            return@launch
+                        }
                         val offline = System.currentTimeMillis() - lastOk
                         if (prefs.alarmOnNoConnection && offline >= NO_CONNECTION_MS) {
                             ring("Понад ${NO_CONNECTION_MS / 60_000} хв немає зв'язку з жодним джерелом даних про тривоги")
@@ -160,6 +182,7 @@ class WatchService : Service() {
         nm.cancel(Notifications.ID_ALARM)
         prefs.armed = false
         prefs.sawAlert = false
+        prefs.scheduleRun = false
         WatchRepo.set(WatchState(Phase.IDLE, message ?: ""))
         if (message != null) nm.notify(Notifications.ID_INFO, Notifications.info(this, message))
         releaseWakeLock()
@@ -207,10 +230,12 @@ class WatchService : Service() {
         const val ACTION_TEST = "ua.vidbiy.TEST"
         const val ACTION_SNOOZE = "ua.vidbiy.SNOOZE"
         const val ACTION_STOP = "ua.vidbiy.STOP"
+        const val ACTION_SCHEDULED = "ua.vidbiy.SCHEDULED"
 
         private const val POLL_MS = 20_000L
         private const val SNOOZE_MS = 5 * 60_000L
         private const val NO_CONNECTION_MS = 5 * 60_000L
+        private const val SCHEDULE_CHECK_MS = 60_000L
         private const val WAKE_LOCK_MAX_MS = 24 * 60 * 60_000L
 
         private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
@@ -222,9 +247,27 @@ class WatchService : Service() {
             val prefs = Prefs(context)
             prefs.armed = true
             prefs.sawAlert = false
+            prefs.scheduleRun = false
             prefs.cutoffAt = prefs.cutoffMinutes.let { if (it >= 0) Prefs.nextOccurrence(it) else 0L }
             WatchRepo.set(WatchState(Phase.WAITING_ALERT, "Перевірка стану тривоги…"))
             ContextCompat.startForegroundService(context, intent(context, ACTION_WATCH))
+        }
+
+        /** Запуск від будильника за розкладом. Якщо очікування вже йде, лише перемикає його в цей режим. */
+        fun startScheduled(context: Context, label: String) {
+            val phase = WatchRepo.state.value.phase
+            if (phase == Phase.RINGING || phase == Phase.SNOOZED) return
+            val prefs = Prefs(context)
+            // Стан у пам'яті, а не prefs.armed: після перезавантаження там могла лишитися позначка з минулої ночі.
+            if (phase == Phase.IDLE) {
+                prefs.sawAlert = false
+                prefs.cutoffAt = prefs.cutoffMinutes.let { if (it >= 0) Prefs.nextOccurrence(it) else 0L }
+            }
+            prefs.armed = true
+            prefs.scheduleRun = true
+            prefs.scheduleLabel = label
+            WatchRepo.set(WatchState(Phase.WAITING_ALERT, "Будильник о $label: перевірка тривоги…"))
+            ContextCompat.startForegroundService(context, intent(context, ACTION_SCHEDULED))
         }
 
         fun test(context: Context) =

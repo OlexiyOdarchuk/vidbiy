@@ -53,6 +53,29 @@ class Prefs(context: Context) {
         get() = sp.getString("custom_sound_name", null)
         set(value) = sp.edit().putString("custom_sound_name", value).apply()
 
+    // Будильник за розкладом: о заданій порі будить, а під час тривоги чекає відбою.
+    var scheduleEnabled: Boolean
+        get() = sp.getBoolean("schedule_enabled", false)
+        set(value) = sp.edit().putBoolean("schedule_enabled", value).apply()
+
+    var scheduleMinutes: Int
+        get() = sp.getInt("schedule_minutes", 7 * 60 + 30)
+        set(value) = sp.edit().putInt("schedule_minutes", value).apply()
+
+    /** Дні тижня бітами: біт 0 — понеділок … біт 6 — неділя; 0 — один раз. */
+    var scheduleDays: Int
+        get() = sp.getInt("schedule_days", 0b0011111)
+        set(value) = sp.edit().putInt("schedule_days", value).apply()
+
+    /** Поточне очікування запущене будильником за розкладом (а не дотиком до місяця). */
+    var scheduleRun: Boolean
+        get() = sp.getBoolean("schedule_run", false)
+        set(value) { sp.edit().putBoolean("schedule_run", value).commit() }
+
+    var scheduleLabel: String
+        get() = sp.getString("schedule_label", "") ?: ""
+        set(value) { sp.edit().putString("schedule_label", value).commit() }
+
     var onboarded: Boolean
         get() = sp.getBoolean("onboarded", false)
         set(value) = sp.edit().putBoolean("onboarded", value).apply()

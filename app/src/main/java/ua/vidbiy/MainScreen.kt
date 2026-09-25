@@ -57,7 +57,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class SettingsState(val prefs: Prefs) {
+class SettingsState(val prefs: Prefs, private val onScheduleChange: () -> Unit = {}) {
     var region by mutableStateOf(prefs.region)
         private set
     var cutoff by mutableIntStateOf(prefs.cutoffMinutes)
@@ -68,6 +68,35 @@ class SettingsState(val prefs: Prefs) {
         private set
     var token by mutableStateOf(prefs.token)
         private set
+
+    var scheduleEnabled by mutableStateOf(prefs.scheduleEnabled)
+        private set
+    var scheduleMinutes by mutableIntStateOf(prefs.scheduleMinutes)
+        private set
+    var scheduleDays by mutableIntStateOf(prefs.scheduleDays)
+        private set
+    var scheduleNext by mutableStateOf(AlarmScheduler.describeNext(prefs))
+        private set
+
+    fun updateSchedule(
+        enabled: Boolean = scheduleEnabled,
+        minutes: Int = scheduleMinutes,
+        days: Int = scheduleDays,
+    ) {
+        prefs.scheduleEnabled = enabled
+        prefs.scheduleMinutes = minutes
+        prefs.scheduleDays = days
+        onScheduleChange()
+        reloadSchedule()
+    }
+
+    /** Одноразовий будильник вимикається сам, коли спрацює, тож стан треба перечитувати. */
+    fun reloadSchedule() {
+        scheduleEnabled = prefs.scheduleEnabled
+        scheduleMinutes = prefs.scheduleMinutes
+        scheduleDays = prefs.scheduleDays
+        scheduleNext = AlarmScheduler.describeNext(prefs)
+    }
 
     fun updateRegion(value: Region) {
         region = value
@@ -127,9 +156,10 @@ class Actions(
     val test: () -> Unit,
     val pickSystemSound: () -> Unit,
     val pickCustomSound: () -> Unit,
+    val openExactAlarmSettings: () -> Unit,
 )
 
-private enum class Screen { HOME, SETTINGS, REGION, SOUND }
+private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE }
 
 @Composable
 fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, actions: Actions) {
@@ -137,6 +167,7 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
     var onboarded by remember { mutableStateOf(prefs.onboarded) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var regionReturn by remember { mutableStateOf(Screen.HOME) }
+    var scheduleReturn by remember { mutableStateOf(Screen.HOME) }
     var dialog by remember { mutableStateOf<AppDialog?>(null) }
 
     if (!onboarded) {
@@ -151,6 +182,7 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
         screen = when (screen) {
             Screen.REGION -> regionReturn
             Screen.SOUND -> Screen.SETTINGS
+            Screen.SCHEDULE -> scheduleReturn
             else -> Screen.HOME
         }
     }
@@ -158,6 +190,9 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
         if (it == AppDialog.REGION) {
             regionReturn = screen
             screen = Screen.REGION
+        } else if (it == AppDialog.SCHEDULE) {
+            scheduleReturn = screen
+            screen = Screen.SCHEDULE
         } else if (it == AppDialog.SOUND) {
             screen = Screen.SOUND
         } else {
@@ -179,6 +214,12 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
                     actions = actions,
                     onBack = { screen = Screen.HOME },
                     onDialog = openDialog,
+                )
+                Screen.SCHEDULE -> ScheduleScreen(
+                    settings = settings,
+                    permissions = permissions,
+                    actions = actions,
+                    onBack = { screen = scheduleReturn },
                 )
                 Screen.SOUND -> SoundScreen(
                     settings = settings,
@@ -228,7 +269,7 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
             onDismiss = { dialog = null },
         )
 
-        AppDialog.REGION, AppDialog.SOUND, null -> Unit
+        AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, null -> Unit
     }
 }
 
@@ -258,7 +299,7 @@ private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
     }
 }
 
-enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND }
+enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND, SCHEDULE }
 
 @Composable
 private fun HomeScreen(
@@ -290,14 +331,22 @@ private fun HomeScreen(
 
             val (onOrb, hint) = when {
                 idle && !permissions.notifications -> actions.requestNotifications to "Торкніться, щоб дозволити сповіщення"
+                idle && settings.scheduleEnabled -> actions.arm to "Торкніться, щоб чекати відбою зараз"
                 idle -> actions.arm to "Торкніться, щоб увімкнути"
                 state.phase == Phase.RINGING || state.phase == Phase.SNOOZED -> actions.stop to "Торкніться, щоб вимкнути"
                 else -> actions.stop to "Торкніться, щоб скасувати"
             }
-            Hero(state, onOrb, hint, modifier = Modifier.padding(vertical = 24.dp))
+            Hero(
+                state,
+                onOrb,
+                hint,
+                settings.scheduleNext.takeIf { settings.scheduleEnabled }
+                    ?.let { AlarmScheduler.formatMinutes(settings.scheduleMinutes) to it },
+                modifier = Modifier.padding(vertical = 24.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PermissionBanner(permissions, actions)
+                ScheduleCard(settings, onOpen = { onDialog(AppDialog.SCHEDULE) })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     InfoTile(
                         icon = Icons.Rounded.Schedule,
@@ -362,9 +411,16 @@ private fun RegionChip(name: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Hero(state: WatchState, onOrbClick: () -> Unit, hint: String, modifier: Modifier = Modifier) {
+private fun Hero(
+    state: WatchState,
+    onOrbClick: () -> Unit,
+    hint: String,
+    /** Час будильника на час і коли він спрацює, якщо його увімкнено. */
+    schedule: Pair<String, String>?,
+    modifier: Modifier = Modifier,
+) {
     val title = when (state.phase) {
-        Phase.IDLE -> "Будильник вимкнено"
+        Phase.IDLE -> schedule?.let { "Будильник о ${it.first}" } ?: "Будильник вимкнено"
         Phase.WAITING_ALERT -> "Очікування тривоги"
         Phase.ALERT -> "Триває тривога"
         Phase.RINGING -> "Відбій!"
@@ -373,6 +429,8 @@ private fun Hero(state: WatchState, onOrbClick: () -> Unit, hint: String, modifi
     val subtitle = when {
         state.phase == Phase.RINGING -> state.reason
         state.text.isNotEmpty() -> state.text
+        schedule != null ->
+            "Спрацює ${schedule.second.substringBefore(" о ")}. Якщо тоді буде тривога, розбудить після відбою."
         else -> "Якщо тривога застала під час сну, будильник пролунає одразу після відбою."
     }
 
