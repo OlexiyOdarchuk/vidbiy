@@ -10,7 +10,10 @@ import android.net.Uri
 data class Sound(val id: String, val name: String, val desc: String, val rawRes: Int)
 
 object Sounds {
-    const val DEFAULT_ID = "marimba"
+    /** Мелодія будильника, обрана в системі (у «Годиннику»). За замовчуванням, як і до вибору звуків. */
+    const val ALARM_ID = "alarm_default"
+    const val DEFAULT_ID = ALARM_ID
+    private const val FALLBACK_ID = "marimba"
     const val SYSTEM_ID = "system"
     const val CUSTOM_ID = "custom"
 
@@ -29,19 +32,22 @@ object Sounds {
     /** Обраний звук, а за ним запасні: стандартний вбудований і системні мелодії. */
     fun candidates(context: Context, prefs: Prefs): List<Uri> {
         val chosen = uriFor(context, prefs.soundId, prefs)
-        val fallback = rawUri(context, builtIn.first { it.id == DEFAULT_ID }.rawRes)
+        val fallback = rawUri(context, builtIn.first { it.id == FALLBACK_ID }.rawRes)
         val system = listOf(RingtoneManager.TYPE_ALARM, RingtoneManager.TYPE_RINGTONE, RingtoneManager.TYPE_NOTIFICATION)
             .mapNotNull { RingtoneManager.getDefaultUri(it) }
         return (listOfNotNull(chosen) + fallback + system).distinct()
     }
 
     fun displayName(prefs: Prefs): String = when (prefs.soundId) {
+        ALARM_ID -> "Системний будильник"
         SYSTEM_ID -> "Мелодія: ${prefs.systemSoundName ?: "системна"}"
         CUSTOM_ID -> "Свій: ${prefs.customSoundName ?: "файл"}"
         else -> builtIn.firstOrNull { it.id == prefs.soundId }?.name ?: builtIn.first().name
     }
 
     fun uriFor(context: Context, id: String, prefs: Prefs): Uri? = when (id) {
+        // Ця адреса завжди вказує на поточну мелодію будильника системи, навіть якщо її змінять.
+        ALARM_ID -> RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
         SYSTEM_ID -> prefs.systemSoundUri?.let(Uri::parse)
         CUSTOM_ID -> prefs.customSoundUri?.let(Uri::parse)
         else -> builtIn.firstOrNull { it.id == id }?.let { rawUri(context, it.rawRes) }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -75,6 +76,17 @@ fun SoundScreen(settings: SettingsState, actions: Actions, onBack: () -> Unit) {
             modifier = Modifier.padding(start = 8.dp, top = 4.dp),
         )
 
+        SectionHeader("Системний")
+        GlassCard {
+            SettingsRow(
+                icon = if (playing == Sounds.ALARM_ID) Icons.Rounded.Stop else Icons.Rounded.Alarm,
+                title = "Системний будильник",
+                value = "Та сама мелодія, що в годиннику телефона",
+                onClick = { choose(Sounds.ALARM_ID) },
+                trailing = { SelectedMark(settings.soundId == Sounds.ALARM_ID) },
+            )
+        }
+
         SectionHeader("Вбудовані")
         GlassCard {
             Sounds.builtIn.forEachIndexed { i, sound ->
@@ -89,7 +101,7 @@ fun SoundScreen(settings: SettingsState, actions: Actions, onBack: () -> Unit) {
             }
         }
 
-        SectionHeader("З телефона")
+        SectionHeader("Інші")
         GlassCard {
             val systemName = settings.prefs.systemSoundName.takeIf { settings.prefs.systemSoundUri != null }
             SettingsRow(
