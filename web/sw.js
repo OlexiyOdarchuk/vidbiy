@@ -6,6 +6,7 @@ const SHELL = [
   "sounds.js", "nosleep.mp4", "manifest.webmanifest",
   "sounds/marimba.mp3", "sounds/sunrise.mp3", "sounds/harp.mp3", "sounds/birds.mp3",
   "sounds/pulse.mp3", "sounds/classic.mp3", "sounds/bells.mp3",
+  "qr/site.svg", "qr/apk.svg",
   "icons/favicon.svg", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png",
 ];
 

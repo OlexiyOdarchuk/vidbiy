@@ -284,12 +284,13 @@ dialog input[type="time"] {
 
 /* ---------- Комп'ютер ---------- */
 @media (min-width: 900px) and (min-height: 560px) {
-  body { display: grid; place-items: center; min-height: 100dvh; padding: 24px; }
+  /* margin: auto центрує, але не виштовхує вміст за верхній край, коли він вищий за екран. */
+  body { display: flex; min-height: 100dvh; padding: 24px; }
   .desktop-only { display: revert; }
 
   /* Налаштування, вибір регіону й знайомство — панель по центру. */
   .screen {
-    width: min(600px, 100%); max-width: none; min-height: 0; margin: 0;
+    width: min(600px, 100%); max-width: none; min-height: 0; margin: auto;
     padding: 28px 32px 32px; border-radius: 32px;
     background: rgba(255, 255, 255, 0.035); border: 1px solid var(--glass-border);
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
@@ -359,3 +360,16 @@ dialog input[type="time"] {
 .phone-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn.small { min-height: 40px; padding: 0 14px; font-size: 14px; gap: 6px; }
 .btn.small svg.i { width: 18px; height: 18px; }
+
+/* QR-коди на комп'ютері */
+.qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.qr-grid figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.qr-grid img { width: 100%; max-width: 148px; height: auto; border-radius: 14px; background: #fff; padding: 6px; }
+.qr-grid figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text-dim); }
+.qr-grid figcaption b { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 15px; font-weight: 600; }
+.qr-grid figcaption b svg.i { width: 18px; height: 18px; color: var(--amber); }
+.link { color: var(--amber); font-weight: 600; font-size: 13px; text-align: left; padding: 2px 0; }
+
+@media (min-width: 900px) and (max-height: 1000px) {
+  .how { display: none !important; }
+}

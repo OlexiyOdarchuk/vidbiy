@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Відбій</title>
   <meta name="description" content="Будильник, що будить після відбою повітряної тривоги.">
+  <link rel="canonical" href="https://vidbiy.ishawyha.dev/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:site_name" content="Відбій">
+  <meta property="og:url" content="https://vidbiy.ishawyha.dev/">
+  <meta property="og:title" content="Відбій — будильник після відбою повітряної тривоги">
+  <meta property="og:description" content="Спіть під час тривоги. Будильник розбудить, щойно у вашій громаді настане відбій. Android, iPhone і комп'ютер.">
+  <meta property="og:image" content="https://vidbiy.ishawyha.dev/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Відбій: будильник, що будить після відбою повітряної тривоги">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Відбій — будильник після відбою повітряної тривоги">
+  <meta name="twitter:description" content="Спіть під час тривоги. Будильник розбудить, щойно у вашій громаді настане відбій.">
+  <meta name="twitter:image" content="https://vidbiy.ishawyha.dev/og.png">
   <meta name="theme-color" content="#0A1430">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -119,10 +134,17 @@
       </div>
       <div class="phone-card desktop-only">
         <h3>На телефоні</h3>
-        <p>Відкрийте <b>vidbiy.ishawyha.dev</b> на телефоні.</p>
-        <div class="phone-links">
-          <button class="btn tonal small" id="show-ios-help"><span data-icon="apple"></span>iPhone: як встановити</button>
-          <a class="btn tonal small" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest/download/Vidbiy.apk"><span data-icon="android"></span>Android: APK</a>
+        <p>Наведіть камеру телефона на код.</p>
+        <div class="qr-grid">
+          <figure>
+            <img src="qr/site.svg" alt="QR-код сайту для iPhone" width="132" height="132">
+            <figcaption><b><span data-icon="apple"></span>iPhone</b><span>Відкриє сайт, який можна додати на початковий екран</span>
+              <button class="link" id="show-ios-help">Як встановити</button></figcaption>
+          </figure>
+          <figure>
+            <img src="qr/apk.svg" alt="QR-код для завантаження програми на Android" width="132" height="132">
+            <figcaption><b><span data-icon="android"></span>Android</b><span>Завантажить програму, яка працює у фоні</span></figcaption>
+          </figure>
         </div>
       </div>
       <ol class="how desktop-only">

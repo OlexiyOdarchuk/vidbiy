@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: radial-gradient(900px 600px at 85% 50%, #22477a 0%, transparent 60%), linear-gradient(#0a1430, #1b3a5e);
+    color: #f1f4fa; font-family: "Inter", "Roboto", "Noto Sans", sans-serif;
+    display: flex; align-items: center; padding: 0 80px; box-sizing: border-box; gap: 40px;
+  }
+  .text { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 26px; }
+  .brand img { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .brand span { font-size: 64px; font-weight: 700; letter-spacing: -1px; }
+  h1 { margin: 0 0 22px; font-size: 46px; line-height: 1.15; font-weight: 650; letter-spacing: -.5px; max-width: 640px; }
+  h1 em { font-style: normal; color: #ffc247; }
+  p { margin: 0 0 34px; font-size: 26px; color: #a7b4cc; max-width: 600px; line-height: 1.35; }
+  .chips { display: flex; gap: 12px; }
+  .chips span { padding: 10px 20px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); font-size: 22px; font-weight: 600; }
+  .domain { margin-top: 30px; font-size: 22px; color: #ffc247; font-weight: 600; }
+  .orb { position: relative; width: 380px; height: 380px; flex: none; display: grid; place-items: center; }
+  .orb i { position: absolute; inset: 0; border-radius: 50%; background: rgba(255,194,71,.10); }
+  .orb i:nth-child(2) { inset: 40px; background: rgba(255,194,71,.14); }
+  .orb i:nth-child(3) { inset: 80px; background: rgba(255,194,71,.18); }
+  .core { position: relative; width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(rgba(255,194,71,.40), rgba(255,194,71,.14)); border: 2px solid rgba(255,194,71,.7); }
+  .core svg { width: 88px; height: 88px; fill: #ffc247; }
+</style>
+</head>
+<body>
+  <div class="text">
+    <div class="brand"><img src="../web/icons/icon-512.png" alt=""><span>Відбій</span></div>
+    <h1>Будильник, що будить <em>після відбою</em> повітряної тривоги</h1>
+    <p>Спіть під час тривоги. Будильник розбудить, щойно у вашій громаді настане відбій.</p>
+    <div class="chips"><span>Android</span><span>iPhone</span><span>Комп'ютер</span></div>
+    <div class="domain">vidbiy.ishawyha.dev</div>
+  </div>
+  <div class="orb"><i></i><i></i><i></i>
+    <div class="core"><svg viewBox="0 0 24 24"><path d="M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+  </div>
+</body>
+</html>
