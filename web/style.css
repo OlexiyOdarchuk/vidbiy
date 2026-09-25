@@ -337,3 +337,10 @@ dialog input[type="time"] {
   .step > h2, .step .scroll h2 { margin-top: 12px; }
   #toast { bottom: 32px; }
 }
+
+/* Вибір звуку */
+.sound-row .play { color: var(--amber); }
+.row .check { color: var(--amber); }
+.upload { width: 100%; margin-top: 14px; cursor: pointer; }
+.upload svg.i { width: 20px; height: 20px; }
+#onboarding-sounds { margin-top: 4px; }

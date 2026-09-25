@@ -47,12 +47,9 @@
     </div>
 
     <div class="step" data-step="3">
-      <div class="grow center">
-        <div class="orb" data-phase="RINGING"></div>
-        <h2>Перевірте звук</h2>
-        <p class="lead">Натисніть і переконайтеся, що сигнал достатньо гучний, щоб вас розбудити.</p>
-        <button class="btn tonal" id="onboarding-test">Перевірити звук</button>
-      </div>
+      <h2>Оберіть звук</h2>
+      <p class="lead">Натисніть, щоб послухати. Можна обрати й свій файл.</p>
+      <div class="grow scroll" id="onboarding-sounds"></div>
       <button class="btn primary" data-finish>Почати користуватися</button>
     </div>
   </section>
@@ -102,6 +99,7 @@
       <div class="group">
         <button class="row" id="row-region"><span class="badge" data-icon="pin"></span><span><b>Регіон</b><small id="row-region-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-cutoff"><span class="badge" data-icon="clock"></span><span><b>Не будити після</b><small id="row-cutoff-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-sound"><span class="badge" data-icon="music"></span><span><b>Звук будильника</b><small id="row-sound-value"></small></span><span data-icon="right" class="dim"></span></button>
         <label class="row"><span class="badge" data-icon="warn"></span><span><b>Будити, якщо зник зв'язок</b><small>Якщо жодне джерело не відповідає понад 5 хвилин</small></span><input type="checkbox" class="switch" id="conn-switch"></label>
       </div>
       <h4>Інше</h4>
@@ -121,6 +119,15 @@
       <h2 class="bar-title">Регіон</h2>
     </header>
     <div class="picker grow" id="screen-picker"></div>
+  </section>
+
+  <!-- Вибір звуку -->
+  <section id="sounds" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Звук будильника</h2>
+    </header>
+    <div class="scroll grow" id="sound-list"></div>
   </section>
 
   <!-- Нічний режим: затемнений екран, поки чекаємо на відбій -->
@@ -160,6 +167,6 @@
 
   <div id="toast" role="status" hidden></div>
 
-  <audio id="sound" src="alarm.mp3" loop preload="auto"></audio>
+  <audio id="sound" loop preload="auto"></audio>
 </body>
 </html>

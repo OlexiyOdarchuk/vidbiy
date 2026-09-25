@@ -1,5 +1,6 @@
 import { fillIcons, icon } from "./icons.js";
 import { DEFAULT_REGION, ancestors, descendants, getJSON, getTree, mountPicker } from "./regions.js";
+import { DEFAULT_SOUND, mountSoundList, soundName, soundUrl, stopPreview } from "./sounds.js";
 
 const POLL_MS = 20_000;
 const SNOOZE_MS = 5 * 60_000;
@@ -27,7 +28,14 @@ function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-const settings = load(SETTINGS_KEY, { region: DEFAULT_REGION, cutoff: -1, alarmOnNoConnection: true, onboarded: false });
+const settings = load(SETTINGS_KEY, {
+  region: DEFAULT_REGION,
+  cutoff: -1,
+  alarmOnNoConnection: true,
+  onboarded: false,
+  sound: DEFAULT_SOUND,
+  customName: "",
+});
 const saveSettings = () => save(SETTINGS_KEY, settings);
 
 // ---------- Стан очікування ----------
@@ -86,6 +94,20 @@ async function fetchStatus(region) {
 // ---------- Звук і екран ----------
 
 const sound = $("sound");
+
+async function applySound() {
+  sound.src = await soundUrl(settings.sound);
+  sound.load();
+}
+
+// Якщо обраний файл раптом не грає, звучить стандартний сигнал: будильник не має мовчати.
+function playAlarm() {
+  sound.currentTime = 0;
+  sound.play().catch(() => {
+    sound.src = `sounds/${DEFAULT_SOUND}.mp3`;
+    sound.play().catch(() => {});
+  });
+}
 let wakeLock = null;
 let noSleep = null;
 
@@ -211,8 +233,7 @@ function ring(reason, { test = false } = {}) {
   watch.test = test || watch.test;
   if (test) watch.generation++;
   keepScreenOn();
-  sound.currentTime = 0;
-  sound.play().catch(() => {});
+  playAlarm();
   navigator.vibrate?.([800, 600, 800, 600, 800]);
   hideNight();
   $("alarm-reason").textContent = reason;
@@ -410,16 +431,19 @@ function render() {
   $("conn-switch").checked = settings.alarmOnNoConnection;
   $("row-region-value").textContent = [settings.region.name, settings.region.detail].filter(Boolean).join(", ");
   $("row-cutoff-value").textContent = $("cutoff-value").textContent;
+  $("row-sound-value").textContent = soundName(settings.sound, settings.customName);
+  $("row-sound").disabled = !idle;
   $("region-next").textContent = `Далі: ${settings.region.name}`;
 }
 
 // ---------- Екрани ----------
 
-const SCREENS = ["onboarding", "home", "settings", "region"];
+const SCREENS = ["onboarding", "home", "settings", "region", "sounds"];
 let regionReturn = "home";
 let howtoOnly = false;
 
 function show(id) {
+  stopPreview();
   SCREENS.forEach((s) => { $(s).hidden = s !== id; });
   window.scrollTo(0, 0);
 }
@@ -452,7 +476,16 @@ document.querySelector("#onboarding [data-finish]").addEventListener("click", ()
   saveSettings();
   show("home");
 });
-$("onboarding-test").addEventListener("click", () => ring("Перевірка будильника", { test: true }));
+const onSoundChange = () => {
+  saveSettings();
+  applySound();
+  render();
+};
+const soundLists = [
+  mountSoundList($("onboarding-sounds"), { settings, onChange: () => { onSoundChange(); soundLists[1].render(); }, onError: toast }),
+  mountSoundList($("sound-list"), { settings, onChange: () => { onSoundChange(); soundLists[0].render(); }, onError: toast }),
+];
+$("row-sound").addEventListener("click", () => show("sounds"));
 
 // Вибір регіону
 const pick = (region) => {
@@ -473,6 +506,8 @@ document.querySelectorAll("[data-back]").forEach((b) =>
   b.addEventListener("click", () => {
     if (!$("region").hidden) {
       if (!screenPicker.back()) show(regionReturn);
+    } else if (!$("sounds").hidden) {
+      show("settings");
     } else {
       show("home");
     }
@@ -546,6 +581,7 @@ function toast(text) {
 // ---------- Старт ----------
 
 renderHowto();
+applySound();
 fillIcons();
 document.querySelectorAll(".orb").forEach(setupOrb);
 document.querySelector(".night-tip").textContent = `${TAP}, щоб показати`;
