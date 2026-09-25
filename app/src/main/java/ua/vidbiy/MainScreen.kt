@@ -57,7 +57,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class SettingsState(private val prefs: Prefs) {
+class SettingsState(val prefs: Prefs) {
     var region by mutableStateOf(prefs.region)
         private set
     var cutoff by mutableIntStateOf(prefs.cutoffMinutes)
@@ -93,6 +93,29 @@ class SettingsState(private val prefs: Prefs) {
         token = value
         prefs.token = value
     }
+
+    var soundId by mutableStateOf(prefs.soundId)
+        private set
+    var soundLabel by mutableStateOf(Sounds.displayName(prefs))
+        private set
+
+    fun updateSound(id: String) {
+        prefs.soundId = id
+        soundId = id
+        soundLabel = Sounds.displayName(prefs)
+    }
+
+    fun setSystemSound(uri: String, name: String?) {
+        prefs.systemSoundUri = uri
+        prefs.systemSoundName = name
+        updateSound(Sounds.SYSTEM_ID)
+    }
+
+    fun setCustomSound(uri: String, name: String?) {
+        prefs.customSoundUri = uri
+        prefs.customSoundName = name
+        updateSound(Sounds.CUSTOM_ID)
+    }
 }
 
 class Actions(
@@ -102,13 +125,14 @@ class Actions(
     val arm: () -> Unit,
     val stop: () -> Unit,
     val test: () -> Unit,
+    val pickSystemSound: () -> Unit,
+    val pickCustomSound: () -> Unit,
 )
 
-private enum class Screen { HOME, SETTINGS, REGION }
+private enum class Screen { HOME, SETTINGS, REGION, SOUND }
 
 @Composable
-fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
-    val settings = remember { SettingsState(prefs) }
+fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, actions: Actions) {
     val state by WatchRepo.state.collectAsStateWithLifecycle()
     var onboarded by remember { mutableStateOf(prefs.onboarded) }
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -124,12 +148,18 @@ fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
     }
 
     BackHandler(enabled = screen != Screen.HOME) {
-        screen = if (screen == Screen.REGION) regionReturn else Screen.HOME
+        screen = when (screen) {
+            Screen.REGION -> regionReturn
+            Screen.SOUND -> Screen.SETTINGS
+            else -> Screen.HOME
+        }
     }
     val openDialog: (AppDialog) -> Unit = {
         if (it == AppDialog.REGION) {
             regionReturn = screen
             screen = Screen.REGION
+        } else if (it == AppDialog.SOUND) {
+            screen = Screen.SOUND
         } else {
             dialog = it
         }
@@ -149,6 +179,11 @@ fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
                     actions = actions,
                     onBack = { screen = Screen.HOME },
                     onDialog = openDialog,
+                )
+                Screen.SOUND -> SoundScreen(
+                    settings = settings,
+                    actions = actions,
+                    onBack = { screen = Screen.SETTINGS },
                 )
                 Screen.REGION -> RegionScreen(
                     settings = settings,
@@ -193,7 +228,7 @@ fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
             onDismiss = { dialog = null },
         )
 
-        AppDialog.REGION, null -> Unit
+        AppDialog.REGION, AppDialog.SOUND, null -> Unit
     }
 }
 
@@ -223,7 +258,7 @@ private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
     }
 }
 
-enum class AppDialog { REGION, SOURCE, CUTOFF }
+enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND }
 
 @Composable
 private fun HomeScreen(

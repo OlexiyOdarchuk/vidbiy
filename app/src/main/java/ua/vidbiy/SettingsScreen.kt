@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WifiOff
@@ -114,6 +115,14 @@ fun SettingsScreen(
                 value = if (settings.cutoff >= 0) Prefs.formatMinutes(settings.cutoff) else "Без обмеження",
                 enabled = idle,
                 onClick = { onDialog(AppDialog.CUTOFF) },
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.MusicNote,
+                title = "Звук будильника",
+                value = settings.soundLabel,
+                enabled = idle,
+                onClick = { onDialog(AppDialog.SOUND) },
             )
             RowDivider()
             SettingsRow(

@@ -32,6 +32,27 @@ class Prefs(context: Context) {
             edit.apply()
         }
 
+    var soundId: String
+        get() = sp.getString("sound", Sounds.DEFAULT_ID) ?: Sounds.DEFAULT_ID
+        set(value) = sp.edit().putString("sound", value).apply()
+
+    // Мелодія системи й свій файл зберігаються окремо, щоб вибір одного не стирав інший.
+    var systemSoundUri: String?
+        get() = sp.getString("system_sound_uri", null)
+        set(value) = sp.edit().putString("system_sound_uri", value).apply()
+
+    var systemSoundName: String?
+        get() = sp.getString("system_sound_name", null)
+        set(value) = sp.edit().putString("system_sound_name", value).apply()
+
+    var customSoundUri: String?
+        get() = sp.getString("custom_sound_uri", null)
+        set(value) = sp.edit().putString("custom_sound_uri", value).apply()
+
+    var customSoundName: String?
+        get() = sp.getString("custom_sound_name", null)
+        set(value) = sp.edit().putString("custom_sound_name", value).apply()
+
     var onboarded: Boolean
         get() = sp.getBoolean("onboarded", false)
         set(value) = sp.edit().putBoolean("onboarded", value).apply()

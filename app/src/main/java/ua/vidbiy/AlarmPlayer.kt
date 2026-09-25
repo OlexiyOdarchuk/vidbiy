@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -76,10 +75,8 @@ class AlarmPlayer(private val context: Context) {
     }
 
     private fun createPlayer(): MediaPlayer? {
-        val candidates =
-            listOf(RingtoneManager.TYPE_ALARM, RingtoneManager.TYPE_RINGTONE, RingtoneManager.TYPE_NOTIFICATION)
-                .mapNotNull { RingtoneManager.getDefaultUri(it) }
-        for (uri in candidates) {
+        // Якщо обраний звук не відкрився (файл видалили, мелодію прибрали), звучить запасний.
+        for (uri in Sounds.candidates(context, Prefs(context))) {
             val mp = MediaPlayer()
             try {
                 mp.setAudioAttributes(attrs)
