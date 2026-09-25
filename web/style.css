@@ -344,3 +344,18 @@ dialog input[type="time"] {
 .upload { width: 100%; margin-top: 14px; cursor: pointer; }
 .upload svg.i { width: 20px; height: 20px; }
 #onboarding-sounds { margin-top: 4px; }
+
+/* Екрани для Android та iPhone */
+.app-icon { border-radius: 22px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); }
+.actions { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.steps-list { text-align: left; margin: 8px 0 0; padding-left: 22px; color: var(--text-dim); max-width: 360px; }
+.steps-list li { margin: 6px 0; }
+.steps-list b { color: var(--text); }
+.ios-head { margin: 12px 0 20px; }
+.badge.num { font-weight: 700; font-size: 18px; }
+.phone-card { padding: 18px 20px; border-radius: 24px; border: 1px solid var(--glass-border); }
+.phone-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.phone-card p { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; }
+.phone-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.small { min-height: 40px; padding: 0 14px; font-size: 14px; gap: 6px; }
+.btn.small svg.i { width: 18px; height: 18px; }

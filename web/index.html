@@ -17,6 +17,44 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
+  <!-- Android: запропонувати програму замість сайту -->
+  <section id="get-android" class="screen" hidden>
+    <div class="grow center">
+      <img class="app-icon" src="icons/icon-192.png" alt="" width="96" height="96">
+      <h2>Для Android є програма</h2>
+      <p class="lead">Вона надійніша за сайт: будильник спрацює навіть на заблокованому телефоні, а сторінку не треба тримати відкритою.</p>
+      <ol class="steps-list">
+        <li>Завантажте файл <b>Vidbiy.apk</b>.</li>
+        <li>Відкрийте його й дозвольте встановлення з цього джерела.</li>
+        <li>Запустіть «Відбій» і дайте дозволи.</li>
+      </ol>
+    </div>
+    <div class="actions">
+      <a class="btn primary" id="apk-download" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest/download/Vidbiy.apk">Завантажити APK</a>
+      <button class="btn text" data-continue>Продовжити на сайті</button>
+    </div>
+  </section>
+
+  <!-- iPhone у Safari: як додати на початковий екран -->
+  <section id="install-ios" class="screen" hidden>
+    <div class="grow scroll">
+      <div class="center ios-head">
+        <img class="app-icon" src="icons/apple-touch-icon.png" alt="" width="96" height="96">
+        <h2>Встановіть на iPhone</h2>
+        <p class="lead">Так «Відбій» відкриватиметься як окрема програма на весь екран, без панелей Safari.</p>
+      </div>
+      <div class="cards">
+        <div class="card"><span class="badge num">1</span><div><h3>Натисніть «Поділитися»</h3><p>Кнопка <span class="inline-icon" data-icon="share"></span> внизу екрана Safari (на iPad — угорі).</p></div></div>
+        <div class="card"><span class="badge num">2</span><div><h3>Оберіть «На початковий екран»</h3><p>Прокрутіть список дій донизу й натисніть <span class="inline-icon" data-icon="add"></span> «На початковий екран».</p></div></div>
+        <div class="card"><span class="badge num">3</span><div><h3>Натисніть «Додати»</h3><p>Потім відкрийте «Відбій» з іконки на початковому екрані.</p></div></div>
+      </div>
+      <p class="foot">Відкрили не в Safari? Скопіюйте адресу й відкрийте її в Safari: інші браузери на iPhone можуть не мати цього пункту.</p>
+    </div>
+    <div class="actions">
+      <button class="btn text" data-continue>Продовжити в браузері</button>
+    </div>
+  </section>
+
   <!-- Знайомство з програмою -->
   <section id="onboarding" class="screen" hidden>
     <div class="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -78,6 +116,14 @@
       <div class="tiles">
         <button class="tile" id="tile-cutoff"><span data-icon="clock"></span><small>Не будити після</small><b id="cutoff-value"></b></button>
         <button class="tile" id="tile-conn"><span data-icon="warn"></span><small>Якщо зник зв'язок</small><b id="conn-value"></b></button>
+      </div>
+      <div class="phone-card desktop-only">
+        <h3>На телефоні</h3>
+        <p>Відкрийте <b>vidbiy.ishawyha.dev</b> на телефоні.</p>
+        <div class="phone-links">
+          <button class="btn tonal small" id="show-ios-help"><span data-icon="apple"></span>iPhone: як встановити</button>
+          <a class="btn tonal small" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest/download/Vidbiy.apk"><span data-icon="android"></span>Android: APK</a>
+        </div>
       </div>
       <ol class="how desktop-only">
         <li><b>Оберіть місце</b><span>Область, район або громаду, де ви навчаєтесь чи працюєте.</span></li>

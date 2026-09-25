@@ -438,7 +438,7 @@ function render() {
 
 // ---------- Екрани ----------
 
-const SCREENS = ["onboarding", "home", "settings", "region", "sounds"];
+const SCREENS = ["get-android", "install-ios", "onboarding", "home", "settings", "region", "sounds"];
 let regionReturn = "home";
 let howtoOnly = false;
 
@@ -587,12 +587,38 @@ document.querySelectorAll(".orb").forEach(setupOrb);
 document.querySelector(".night-tip").textContent = `${TAP}, щоб показати`;
 $("alarm-clock").textContent = hhmm(new Date());
 render();
-if (settings.onboarded) {
-  show("home");
-} else {
-  goStep(0);
-  show("onboarding");
+// Спершу пропонуємо найкращий варіант для пристрою: на Android — програму, на iPhone — встановлення на початковий екран.
+function startApp() {
+  if (settings.onboarded) {
+    show("home");
+  } else {
+    goStep(0);
+    show("onboarding");
+  }
 }
+const GATE_KEY = "vidbiy.gate";
+let gateSeen = false;
+try { gateSeen = sessionStorage.getItem(GATE_KEY) === "1"; } catch {}
+document.querySelectorAll("[data-continue]").forEach((b) =>
+  b.addEventListener("click", () => {
+    try { sessionStorage.setItem(GATE_KEY, "1"); } catch {}
+    if (iosHelpReturn) {
+      show(iosHelpReturn);
+      iosHelpReturn = null;
+    } else {
+      startApp();
+    }
+  }));
+let iosHelpReturn = null;
+$("show-ios-help").addEventListener("click", () => {
+  iosHelpReturn = "home";
+  $("install-ios").querySelector("[data-continue]").textContent = "Зрозуміло";
+  show("install-ios");
+});
+
+if (!gateSeen && isAndroid && !isStandalone()) show("get-android");
+else if (!gateSeen && isIOS && !isStandalone()) show("install-ios");
+else startApp();
 setInterval(() => { if (watch.phase !== "IDLE") render(); }, 10_000);
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

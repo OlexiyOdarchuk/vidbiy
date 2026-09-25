@@ -8,7 +8,7 @@ Android-будильник, що спрацьовує після відбою п
   <img src="docs/screenshots/alarm.png" width="220" alt="Будильник після відбою">
 </p>
 
-**[⬇ Завантажити APK для Android](../../releases/latest)** · **[🌙 Веб-версія для iPhone](https://vidbiy.ishawyha.dev/)**
+**[⬇ Завантажити APK для Android](https://github.com/OlexiyOdarchuk/vidbiy/releases/latest/download/Vidbiy.apk)** · **[🌙 Веб-версія для iPhone](https://vidbiy.ishawyha.dev/)**
 
 ## Як це працює
 
