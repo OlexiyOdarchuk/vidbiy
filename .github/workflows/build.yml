@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
+    paths-ignore: ["web/**", "worker/**", "docs/**", "README.md"]
   pull_request:
 
 jobs:

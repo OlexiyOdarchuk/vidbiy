@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Відбій</title>
+  <meta name="description" content="Будильник, що будить після відбою повітряної тривоги.">
+  <meta name="theme-color" content="#0A1430">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Відбій">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <!-- Знайомство з програмою -->
+  <section id="onboarding" class="screen" hidden>
+    <div class="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+    <div class="step" data-step="0">
+      <div class="grow center">
+        <div class="orb" data-phase="IDLE"></div>
+        <h1 class="display">Відбій</h1>
+        <p class="lead">Тривога застала під час сну? Спіть далі. Будильник розбудить вас одразу після відбою.</p>
+      </div>
+      <button class="btn primary" data-next>Почати</button>
+    </div>
+
+    <div class="step" data-step="1">
+      <div class="grow scroll">
+        <h2>Як це працює на iPhone</h2>
+        <p class="lead">iPhone не дозволяє сайтам працювати у фоні, тому будильник працює, поки сторінка відкрита.</p>
+        <div class="cards">
+          <div class="card info" id="install-card">
+            <span class="badge" data-icon="add"></span>
+            <div>
+              <h3>Додайте на початковий екран</h3>
+              <p>У Safari натисніть <span class="inline-icon" data-icon="share"></span> «Поділитися» → «На початковий екран». Сайт відкриватиметься як окрема програма.</p>
+            </div>
+          </div>
+          <div class="card info">
+            <span class="badge" data-icon="charge"></span>
+            <div>
+              <h3>Поставте телефон на зарядку</h3>
+              <p>Залиште програму відкритою. Екран не гаснутиме, а сторінка затемниться майже до чорного.</p>
+            </div>
+          </div>
+          <div class="card info">
+            <span class="badge" data-icon="volume"></span>
+            <div>
+              <h3>Увімкніть гучність</h3>
+              <p>Сигнал грає навіть у беззвучному режимі, але гучність береться з кнопок гучності. Додайте її перед сном.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="btn primary" data-next>Зрозуміло</button>
+    </div>
+
+    <div class="step" data-step="2">
+      <h2>Де ви навчаєтесь чи працюєте?</h2>
+      <p class="lead">Будильник стежитиме за тривогою саме тут. Можна обрати область, район або громаду.</p>
+      <div class="picker grow" id="onboarding-picker"></div>
+      <button class="btn primary" data-next id="region-next">Далі</button>
+    </div>
+
+    <div class="step" data-step="3">
+      <div class="grow center">
+        <div class="orb" data-phase="RINGING"></div>
+        <h2>Перевірте звук</h2>
+        <p class="lead">Натисніть і переконайтеся, що сигнал достатньо гучний, щоб вас розбудити.</p>
+        <button class="btn tonal" id="onboarding-test">Перевірити звук</button>
+      </div>
+      <button class="btn primary" data-finish>Почати користуватися</button>
+    </div>
+  </section>
+
+  <!-- Головний екран -->
+  <section id="home" class="screen" hidden>
+    <header class="topbar">
+      <button class="chip" id="region-chip"><span data-icon="pin"></span><span id="region-name"></span><span data-icon="down" class="dim"></span></button>
+      <button class="icon-btn" id="open-settings" aria-label="Налаштування"><span data-icon="gear"></span></button>
+    </header>
+
+    <div class="hero">
+      <button class="orb big" id="main-orb" data-phase="IDLE" aria-describedby="orb-hint"></button>
+      <span class="hint" id="orb-hint"><span data-icon="touch"></span><span id="hint-text"></span></span>
+      <h1 id="title"></h1>
+      <p class="lead" id="subtitle"></p>
+      <p class="source" id="source" hidden><i></i><span></span></p>
+    </div>
+
+    <div class="bottom">
+      <div class="banner" id="install-banner" hidden>
+        <span data-icon="add"></span>
+        <p>Додайте на початковий екран: <span class="inline-icon" data-icon="share"></span> «Поділитися» → «На початковий екран».</p>
+      </div>
+      <div class="tiles">
+        <button class="tile" id="tile-cutoff"><span data-icon="clock"></span><small>Не будити після</small><b id="cutoff-value"></b></button>
+        <button class="tile" id="tile-conn"><span data-icon="warn"></span><small>Якщо зник зв'язок</small><b id="conn-value"></b></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Налаштування -->
+  <section id="settings" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Налаштування</h2>
+    </header>
+    <div class="scroll">
+      <p class="notice" id="settings-locked" hidden>Налаштування можна змінити, коли будильник вимкнено.</p>
+      <h4>Будильник</h4>
+      <div class="group">
+        <button class="row" id="row-region"><span class="badge" data-icon="pin"></span><span><b>Регіон</b><small id="row-region-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-cutoff"><span class="badge" data-icon="clock"></span><span><b>Не будити після</b><small id="row-cutoff-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <label class="row"><span class="badge" data-icon="warn"></span><span><b>Будити, якщо зник зв'язок</b><small>Якщо жодне джерело не відповідає понад 5 хвилин</small></span><input type="checkbox" class="switch" id="conn-switch"></label>
+      </div>
+      <h4>Інше</h4>
+      <div class="group">
+        <button class="row" id="row-test"><span class="badge" data-icon="volume"></span><span><b>Перевірити звук будильника</b></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-howto"><span class="badge" data-icon="info"></span><span><b>Як це працює на iPhone</b></span><span data-icon="right" class="dim"></span></button>
+        <a class="row" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest" target="_blank" rel="noopener"><span class="badge" data-icon="android"></span><span><b>Програма для Android</b><small>Працює у фоні, навіть коли телефон заблоковано</small></span><span data-icon="right" class="dim"></span></a>
+      </div>
+      <p class="foot">Дані: siren.pp.ua (ukrainealarm), запасне джерело — ubilling.net.ua. Жодне джерело не гарантує 100% надійності, тож для важливих подій варто мати й звичайний будильник.</p>
+    </div>
+  </section>
+
+  <!-- Вибір регіону -->
+  <section id="region" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Регіон</h2>
+    </header>
+    <div class="picker grow" id="screen-picker"></div>
+  </section>
+
+  <!-- Нічний режим: затемнений екран, поки чекаємо на відбій -->
+  <div id="night" hidden>
+    <div class="night-inner">
+      <div class="night-clock" id="night-clock"></div>
+      <div class="night-status" id="night-status"></div>
+      <div class="night-tip">Торкніться, щоб показати</div>
+    </div>
+  </div>
+
+  <!-- Будильник -->
+  <section id="alarm" hidden>
+    <div class="alarm-clock" id="alarm-clock"></div>
+    <div class="center">
+      <div class="orb big" data-phase="RINGING"></div>
+      <h1>Прокидайтеся!</h1>
+      <p class="lead" id="alarm-reason"></p>
+    </div>
+    <div class="alarm-actions">
+      <button class="btn primary tall" id="alarm-stop">Вимкнути</button>
+      <button class="btn text" id="alarm-snooze"><span data-icon="snooze"></span>Ще 5 хвилин</button>
+    </div>
+  </section>
+
+  <dialog id="cutoff-dialog">
+    <form method="dialog">
+      <h3>Не будити після</h3>
+      <p>Якщо відбій настане пізніше, будильник вимкнеться без сигналу. Наприклад, коли пари вже закінчились.</p>
+      <input type="time" id="cutoff-input" value="14:30">
+      <div class="dialog-actions">
+        <button value="clear" class="btn text">Без обмеження</button>
+        <button value="ok" class="btn text accent">Готово</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+
+  <audio id="sound" src="alarm.mp3" loop preload="auto"></audio>
+</body>
+</html>
