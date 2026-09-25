@@ -1,7 +1,13 @@
 package ua.vidbiy
 
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,23 +17,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,379 +46,384 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+class SettingsState(private val prefs: Prefs) {
+    var regionUid by mutableIntStateOf(prefs.regionUid)
+        private set
+    var cutoff by mutableIntStateOf(prefs.cutoffMinutes)
+        private set
+    var alarmOnNoConnection by mutableStateOf(prefs.alarmOnNoConnection)
+        private set
+    var source by mutableStateOf(prefs.source)
+        private set
+    var token by mutableStateOf(prefs.token)
+        private set
+
+    val region get() = Regions.byUid(regionUid)
+
+    fun updateRegion(value: Int) {
+        regionUid = value
+        prefs.regionUid = value
+    }
+
+    fun updateCutoff(value: Int) {
+        cutoff = value
+        prefs.cutoffMinutes = value
+    }
+
+    fun updateAlarmOnNoConnection(value: Boolean) {
+        alarmOnNoConnection = value
+        prefs.alarmOnNoConnection = value
+    }
+
+    fun updateSource(value: Source) {
+        source = value
+        prefs.source = value
+    }
+
+    fun updateToken(value: String) {
+        token = value
+        prefs.token = value
+    }
+}
+
+class Actions(
+    val requestNotifications: () -> Unit,
+    val openFullScreenSettings: () -> Unit,
+    val openBatterySettings: () -> Unit,
+    val arm: () -> Unit,
+    val stop: () -> Unit,
+    val test: () -> Unit,
+)
 
 @Composable
-fun MainScreen(
-    prefs: Prefs,
-    permissions: Permissions,
-    onRequestNotifications: () -> Unit,
-    onOpenFullScreenSettings: () -> Unit,
-    onOpenBatterySettings: () -> Unit,
-    onPickTime: (initialMinutes: Int, onPicked: (Int) -> Unit) -> Unit,
-    onArm: () -> Unit,
-    onStop: () -> Unit,
-    onTest: () -> Unit,
-) {
+fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
+    val settings = remember { SettingsState(prefs) }
     val state by WatchRepo.state.collectAsStateWithLifecycle()
-    var token by remember { mutableStateOf(prefs.token) }
-    var regionUid by remember { mutableIntStateOf(prefs.regionUid) }
-    var cutoff by remember { mutableIntStateOf(prefs.cutoffMinutes) }
-    var alarmOnNoConnection by remember { mutableStateOf(prefs.alarmOnNoConnection) }
-    var source by remember { mutableStateOf(prefs.source) }
-    var showRegions by remember { mutableStateOf(false) }
-    var showSources by remember { mutableStateOf(false) }
-    val idle = state.phase == Phase.IDLE
+    var inSettings by remember { mutableStateOf(false) }
+    var dialog by remember { mutableStateOf<AppDialog?>(null) }
 
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .safeDrawingPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column {
-                Text("Відбій", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    "Будильник, що спрацьовує після відбою повітряної тривоги",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    BackHandler(enabled = inSettings) { inSettings = false }
+
+    NightBackground {
+        AnimatedContent(
+            targetState = inSettings,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "screen",
+        ) { showSettings ->
+            if (showSettings) {
+                SettingsScreen(
+                    state = state,
+                    settings = settings,
+                    permissions = permissions,
+                    actions = actions,
+                    onBack = { inSettings = false },
+                    onDialog = { dialog = it },
                 )
-            }
-
-            StatusCard(state)
-
-            if (idle) {
-                Button(
-                    onClick = onArm,
-                    enabled = permissions.notifications,
-                    modifier = Modifier.fillMaxWidth().height(64.dp),
-                ) {
-                    Text("Розбудити після відбою", fontSize = 18.sp)
-                }
-                if (!permissions.notifications) {
-                    Hint("Щоб увімкнути будильник, дозвольте сповіщення.")
-                }
             } else {
-                OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    Text(if (state.phase == Phase.RINGING || state.phase == Phase.SNOOZED) "Вимкнути будильник" else "Скасувати")
-                }
-                Hint("Налаштування можна змінити, коли будильник вимкнено.")
-            }
-
-            PermissionsCard(permissions, onRequestNotifications, onOpenFullScreenSettings, onOpenBatterySettings)
-
-            SettingsCard(title = "Налаштування", enabled = idle) {
-                SettingRow(
-                    title = "Регіон",
-                    value = Regions.byUid(regionUid).name,
-                    enabled = idle,
-                    onClick = { showRegions = true },
+                HomeScreen(
+                    state = state,
+                    settings = settings,
+                    permissions = permissions,
+                    actions = actions,
+                    onOpenSettings = { inSettings = true },
+                    onDialog = { dialog = it },
                 )
-                HorizontalDivider()
-                SettingRow(
-                    title = "Не будити після",
-                    value = if (cutoff >= 0) Prefs.formatMinutes(cutoff) else "Без обмеження",
-                    enabled = idle,
-                    onClick = {
-                        onPickTime(cutoff) {
-                            cutoff = it
-                            prefs.cutoffMinutes = it
-                        }
-                    },
-                    trailing = if (cutoff >= 0 && idle) {
-                        {
-                            TextButton(onClick = {
-                                cutoff = -1
-                                prefs.cutoffMinutes = -1
-                            }) { Text("Прибрати") }
-                        }
-                    } else null,
-                )
-                HorizontalDivider()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Будити, якщо зник зв'язок")
-                        Text(
-                            "Сигнал, якщо жодне джерело даних не відповідає понад 5 хвилин",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = alarmOnNoConnection,
-                        enabled = idle,
-                        onCheckedChange = {
-                            alarmOnNoConnection = it
-                            prefs.alarmOnNoConnection = it
-                        },
-                    )
-                }
-            }
-
-            SettingsCard(title = "Джерела даних", enabled = idle) {
-                SettingRow(
-                    title = "Основне джерело",
-                    value = source.title,
-                    enabled = idle,
-                    onClick = { showSources = true },
-                )
-                Hint("Якщо основне джерело недоступне, дані беруться з інших.")
-                HorizontalDivider()
-                SourcesSection(
-                    token = token,
-                    regionUid = regionUid,
-                    enabled = idle,
-                    onTokenChange = {
-                        token = it
-                        prefs.token = it
-                    },
-                )
-            }
-
-            if (idle) {
-                TextButton(onClick = onTest, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Перевірити звук будильника")
-                }
             }
         }
     }
 
-    if (showSources) {
-        ChoiceDialog(
-            title = "Основне джерело",
-            options = Source.entries.map {
-                it to if (it == Source.ALERTS_IN_UA && token.isBlank()) "${it.title} (потрібен ключ)" else it.title
-            },
-            selected = source,
-            onSelect = {
-                source = it
-                prefs.source = it
-                showSources = false
-            },
-            onDismiss = { showSources = false },
-        )
-    }
-
-    if (showRegions) {
-        ChoiceDialog(
+    when (dialog) {
+        AppDialog.REGION -> ChoiceDialog(
             title = "Регіон",
             options = Regions.all.map { it.uid to it.name },
-            selected = regionUid,
+            selected = settings.regionUid,
             onSelect = {
-                regionUid = it
-                prefs.regionUid = it
-                showRegions = false
+                settings.updateRegion(it)
+                dialog = null
             },
-            onDismiss = { showRegions = false },
+            onDismiss = { dialog = null },
         )
+
+        AppDialog.SOURCE -> ChoiceDialog(
+            title = "Основне джерело",
+            options = Source.entries.map {
+                it to if (it == Source.ALERTS_IN_UA && settings.token.isBlank()) "${it.title} (потрібен ключ)" else it.title
+            },
+            selected = settings.source,
+            onSelect = {
+                settings.updateSource(it)
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+
+        AppDialog.CUTOFF -> CutoffDialog(
+            initialMinutes = settings.cutoff,
+            onPick = {
+                settings.updateCutoff(it)
+                dialog = null
+            },
+            onClear = {
+                settings.updateCutoff(-1)
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+
+        null -> Unit
+    }
+}
+
+enum class AppDialog { REGION, SOURCE, CUTOFF }
+
+@Composable
+private fun HomeScreen(
+    state: WatchState,
+    settings: SettingsState,
+    permissions: Permissions,
+    actions: Actions,
+    onOpenSettings: () -> Unit,
+    onDialog: (AppDialog) -> Unit,
+) {
+    val idle = state.phase == Phase.IDLE
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight)
+                .safeDrawingPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                RegionChip(settings.region.name, enabled = idle, onClick = { onDialog(AppDialog.REGION) })
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Налаштування", tint = Night.TextDim)
+                }
+            }
+
+            Hero(state, modifier = Modifier.padding(vertical = 24.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PermissionBanner(permissions, actions)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    InfoTile(
+                        icon = Icons.Rounded.Schedule,
+                        label = "Не будити після",
+                        value = if (settings.cutoff >= 0) Prefs.formatMinutes(settings.cutoff) else "Без обмеження",
+                        enabled = idle,
+                        onClick = { onDialog(AppDialog.CUTOFF) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    InfoTile(
+                        icon = Icons.Rounded.WifiOff,
+                        label = "Якщо зник зв'язок",
+                        value = if (settings.alarmOnNoConnection) "Будити" else "Не будити",
+                        enabled = idle,
+                        onClick = { settings.updateAlarmOnNoConnection(!settings.alarmOnNoConnection) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                MainAction(state.phase, permissions.notifications, actions)
+            }
+        }
     }
 }
 
 @Composable
-private fun StatusCard(state: WatchState) {
-    val scheme = MaterialTheme.colorScheme
-    val (container, content) = when (state.phase) {
-        Phase.IDLE -> scheme.surfaceVariant to scheme.onSurfaceVariant
-        Phase.WAITING_ALERT -> scheme.secondaryContainer to scheme.onSecondaryContainer
-        Phase.ALERT -> scheme.errorContainer to scheme.onErrorContainer
-        Phase.RINGING, Phase.SNOOZED -> scheme.primaryContainer to scheme.onPrimaryContainer
+private fun RegionChip(name: String, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = Night.Glass,
+        border = BorderStroke(1.dp, Night.GlassBorder),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            Icon(
+                Icons.Rounded.LocationOn,
+                contentDescription = null,
+                tint = Night.Amber,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                name,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 220.dp),
+            )
+            if (enabled) {
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = Night.TextDim,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun Hero(state: WatchState, modifier: Modifier = Modifier) {
     val title = when (state.phase) {
         Phase.IDLE -> "Будильник вимкнено"
         Phase.WAITING_ALERT -> "Очікування тривоги"
         Phase.ALERT -> "Триває тривога"
-        Phase.RINGING -> "Будильник дзвонить"
-        Phase.SNOOZED -> "Будильник відкладено"
+        Phase.RINGING -> "Відбій!"
+        Phase.SNOOZED -> "Відкладено"
     }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = container, contentColor = content),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            if (state.text.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(state.text, style = MaterialTheme.typography.bodyMedium)
+    val subtitle = when {
+        state.phase == Phase.RINGING -> state.reason
+        state.text.isNotEmpty() -> state.text
+        else -> "Увімкніть, якщо тривога застала під час сну. Будильник пролунає одразу після відбою."
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {
+        StatusOrb(state.phase)
+        Spacer(Modifier.height(24.dp))
+        Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Night.TextDim,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 340.dp),
+        )
+        if (state.phase != Phase.IDLE && state.source.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            val time = DateTimeFormatter.ofPattern("HH:mm:ss")
+                .format(Instant.ofEpochMilli(state.checkedAt).atZone(ZoneId.systemDefault()))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = CircleShape, color = Night.Green, modifier = Modifier.size(8.dp)) {}
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${state.source} · перевірено о $time",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Night.TextDim,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun PermissionsCard(
-    permissions: Permissions,
-    onRequestNotifications: () -> Unit,
-    onOpenFullScreenSettings: () -> Unit,
-    onOpenBatterySettings: () -> Unit,
-) {
-    if (permissions.notifications && permissions.fullScreen && permissions.battery) return
-    SettingsCard(title = "Потрібні дозволи", enabled = true) {
-        if (!permissions.notifications) {
-            PermissionRow("Сповіщення — без них будильник не працює", onRequestNotifications)
-        }
-        if (!permissions.fullScreen) {
-            PermissionRow("Показ будильника на весь екран, коли телефон заблоковано", onOpenFullScreenSettings)
-        }
-        if (!permissions.battery) {
-            PermissionRow("Робота у фоні без обмежень батареї — інакше система може зупинити очікування", onOpenBatterySettings)
-        }
-    }
-}
-
-@Composable
-private fun PermissionRow(text: String, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(8.dp))
-        TextButton(onClick = onClick) { Text("Дозволити") }
-    }
-}
-
-@Composable
-private fun SourcesSection(token: String, regionUid: Int, enabled: Boolean, onTokenChange: (String) -> Unit) {
-    val scope = rememberCoroutineScope()
-    val uriHandler = LocalUriHandler.current
-    var visible by remember { mutableStateOf(false) }
-    var checking by remember { mutableStateOf(false) }
-    var results by remember { mutableStateOf<List<Pair<String, Boolean>>>(emptyList()) }
-
-    Text("Ключ alerts.in.ua (необов'язково)")
-    OutlinedTextField(
-        value = token,
-        onValueChange = onTokenChange,
-        enabled = enabled,
-        singleLine = true,
-        label = { Text("Ключ") },
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = {
-            TextButton(onClick = { visible = !visible }) { Text(if (visible) "Сховати" else "Показати") }
-        },
-        modifier = Modifier.fillMaxWidth(),
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedButton(
-            enabled = !checking,
-            onClick = {
-                checking = true
-                scope.launch {
-                    val region = Regions.byUid(regionUid)
-                    results = Source.entries.map { source ->
-                        val r = withContext(Dispatchers.IO) { AlertsApi.fetchFrom(source, region, token.trim()) }
-                        when (r) {
-                            is ApiResult.Ok -> {
-                                val now = when (r.status) {
-                                    AlertStatus.NONE -> "тривоги немає"
-                                    AlertStatus.PARTIAL -> "тривога в частині регіону"
-                                    AlertStatus.ACTIVE -> "триває тривога"
-                                }
-                                "${source.title}: працює, $now" to true
-                            }
-                            is ApiResult.Error -> r.message to false
-                        }
-                    }
-                    checking = false
-                }
-            },
-        ) { Text(if (checking) "Перевірка…" else "Перевірити джерела") }
-        Spacer(Modifier.width(8.dp))
-        TextButton(onClick = { uriHandler.openUri("https://devs.alerts.in.ua/") }) { Text("Отримати ключ") }
-    }
-    results.forEach { (text, ok) ->
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-        )
-    }
-}
-
-@Composable
-private fun SettingsCard(title: String, enabled: Boolean, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (enabled) Color.Unspecified else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun SettingRow(
-    title: String,
+private fun InfoTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
     value: String,
     enabled: Boolean,
     onClick: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 8.dp),
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = Night.Glass,
+        border = BorderStroke(1.dp, Night.GlassBorder),
+        modifier = modifier,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title)
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        Column(Modifier.padding(16.dp).alpha(if (enabled) 1f else 0.5f)) {
+            Icon(icon, contentDescription = null, tint = Night.Amber, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Night.TextDim)
+            Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        trailing?.invoke()
     }
 }
 
 @Composable
-private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun MainAction(phase: Phase, canNotify: Boolean, actions: Actions) {
+    when (phase) {
+        Phase.IDLE -> Button(
+            onClick = actions.arm,
+            enabled = canNotify,
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Night.Amber, contentColor = Night.OnAmber),
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+        ) {
+            Icon(Icons.Rounded.Alarm, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text("Розбудити після відбою", style = MaterialTheme.typography.titleMedium)
+        }
+
+        else -> OutlinedButton(
+            onClick = actions.stop,
+            shape = CircleShape,
+            border = BorderStroke(1.dp, Night.TextDim.copy(alpha = 0.5f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Night.Text),
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+        ) {
+            Icon(Icons.Rounded.Close, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (phase == Phase.RINGING || phase == Phase.SNOOZED) "Вимкнути будильник" else "Скасувати",
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
 }
 
 @Composable
-private fun <T> ChoiceDialog(
-    title: String,
-    options: List<Pair<T, String>>,
-    selected: T,
-    onSelect: (T) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            LazyColumn(Modifier.heightIn(max = 480.dp)) {
-                items(options) { (value, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { onSelect(value) },
-                    ) {
-                        RadioButton(selected = value == selected, onClick = { onSelect(value) })
-                        Text(label)
-                    }
+private fun PermissionBanner(permissions: Permissions, actions: Actions) {
+    val missing = buildList {
+        if (!permissions.notifications) add("Сповіщення" to actions.requestNotifications)
+        if (!permissions.fullScreen) add("Показ на весь екран" to actions.openFullScreenSettings)
+        if (!permissions.battery) add("Робота без обмежень батареї" to actions.openBatterySettings)
+    }
+    if (missing.isEmpty()) return
+
+    GlassCard(color = Night.Amber.copy(alpha = 0.10f), border = Night.Amber.copy(alpha = 0.35f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)
+        ) {
+            Icon(
+                Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = Night.Amber,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (!permissions.notifications) "Без сповіщень будильник не спрацює" else "Дозвольте, щоб будильник працював надійно",
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
+        Column(Modifier.padding(start = 46.dp, end = 8.dp, bottom = 4.dp)) {
+            missing.forEach { (label, onClick) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Night.TextDim,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onClick) { Text("Дозволити") }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрити") } },
-    )
+        }
+    }
 }

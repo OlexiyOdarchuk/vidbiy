@@ -9,6 +9,8 @@ data class WatchState(
     val phase: Phase = Phase.IDLE,
     val text: String = "",
     val reason: String = "",
+    val source: String = "",
+    val checkedAt: Long = 0L,
 )
 
 object WatchRepo {

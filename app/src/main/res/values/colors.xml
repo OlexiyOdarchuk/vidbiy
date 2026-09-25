@@ -1,5 +1,5 @@
 <resources>
-    <color name="window_bg">#FFFBFE</color>
+    <color name="window_bg">#0E1A33</color>
     <color name="launcher_bg_top">#16264A</color>
     <color name="launcher_bg_bottom">#2A5E86</color>
 </resources>

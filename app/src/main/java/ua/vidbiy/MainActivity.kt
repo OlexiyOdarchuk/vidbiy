@@ -3,15 +3,16 @@ package ua.vidbiy
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.NotificationManager
-import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,25 +35,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         Notifications.createChannels(this)
         val prefs = Prefs(this)
 
+        val actions = Actions(
+            requestNotifications = {
+                if (Build.VERSION.SDK_INT >= 33) notificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            openFullScreenSettings = ::openFullScreenSettings,
+            openBatterySettings = ::openBatterySettings,
+            arm = { WatchService.arm(this) },
+            stop = { WatchService.send(this, WatchService.ACTION_STOP) },
+            test = { WatchService.test(this) },
+        )
+
         setContent {
             VidbiyTheme {
-                MainScreen(
-                    prefs = prefs,
-                    permissions = permissions,
-                    onRequestNotifications = {
-                        if (Build.VERSION.SDK_INT >= 33) notificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    },
-                    onOpenFullScreenSettings = ::openFullScreenSettings,
-                    onOpenBatterySettings = ::openBatterySettings,
-                    onPickTime = ::pickTime,
-                    onArm = { WatchService.arm(this) },
-                    onStop = { WatchService.send(this, WatchService.ACTION_STOP) },
-                    onTest = { WatchService.test(this) },
-                )
+                VidbiyApp(prefs, permissions, actions)
             }
         }
     }
@@ -87,10 +87,5 @@ class MainActivity : ComponentActivity() {
         startActivity(
             Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
         )
-    }
-
-    private fun pickTime(initialMinutes: Int, onPicked: (Int) -> Unit) {
-        val start = if (initialMinutes >= 0) initialMinutes else 14 * 60
-        TimePickerDialog(this, { _, h, m -> onPicked(h * 60 + m) }, start / 60, start % 60, true).show()
     }
 }

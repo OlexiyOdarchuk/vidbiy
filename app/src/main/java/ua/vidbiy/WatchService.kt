@@ -93,22 +93,22 @@ class WatchService : Service() {
                 when (result) {
                     is ApiResult.Ok -> {
                         lastOk = System.currentTimeMillis()
-                        val via = " Дані: ${result.source.title}."
+                        val via = result.source.title
                         if (result.status != AlertStatus.NONE) {
                             prefs.sawAlert = true
                             phase = Phase.ALERT
-                            val what =
-                                if (result.status == AlertStatus.PARTIAL) "Тривога в частині регіону" else "Тривога"
-                            update(phase, "$what: ${region.name}. Сигнал пролунає після відбою в усьому регіоні.$via")
+                            val text = if (result.status == AlertStatus.PARTIAL) {
+                                "Тривога в частині регіону. Будильник пролунає після відбою в усьому регіоні."
+                            } else {
+                                "Будильник пролунає після відбою."
+                            }
+                            update(phase, text, via)
                         } else if (prefs.sawAlert) {
                             ring("Відбій тривоги: ${region.name}")
                             return@launch
                         } else {
                             phase = Phase.WAITING_ALERT
-                            update(
-                                phase,
-                                "Зараз тривоги немає (${region.name}). Сигнал пролунає після відбою наступної тривоги.$via"
-                            )
+                            update(phase, "Зараз тривоги немає. Будильник пролунає після відбою наступної тривоги.", via)
                         }
                     }
 
@@ -166,8 +166,16 @@ class WatchService : Service() {
         stopSelf()
     }
 
-    private fun update(phase: Phase, text: String) {
-        WatchRepo.set(WatchState(phase, text))
+    private fun update(phase: Phase, text: String, source: String? = null) {
+        val prev = WatchRepo.state.value
+        WatchRepo.set(
+            WatchState(
+                phase = phase,
+                text = text,
+                source = source ?: prev.source,
+                checkedAt = if (source != null) System.currentTimeMillis() else prev.checkedAt,
+            )
+        )
         nm.notify(Notifications.ID_WATCH, Notifications.watch(this, text))
     }
 
