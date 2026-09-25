@@ -3,7 +3,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
+    paths: ["web/**", "scripts/build_web.py", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -24,17 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      # Домен іде через Cloudflare, який кешує файли. Щоб після оновлення браузер не отримав
-      # новий index.html зі старим app.js, до адрес додається версія коміту.
-      - name: Version asset URLs
-        run: |
-          V=${GITHUB_SHA::8}
-          sed -i -E "s#(href|src)=\"(style\.css|app\.js)\"#\1=\"\2?v=$V\"#g" web/index.html
-          sed -i -E "s#from \"\./([a-z]+\.js)\"#from \"./\1?v=$V\"#g" web/*.js
-          sed -i -E "s#const CACHE = \"vidbiy-[^\"]*\"#const CACHE = \"vidbiy-$V\"#" web/sw.js
-          grep -o 'app.js?v=[a-z0-9]*' web/index.html
+      # Та сама збірка, що й локально: версія коміту в адресах файлів (див. scripts/build_web.py).
+      - name: Build site
+        run: python3 scripts/build_web.py --version "${GITHUB_SHA::8}"
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: dist/web
       - id: deployment
         uses: actions/deploy-pages@v4

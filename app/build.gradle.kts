@@ -35,8 +35,11 @@ android {
     }
 }
 
+// Байткод для Java 17, але збирати можна будь-яким JDK 17–24, без окремо встановленого JDK 17.
 kotlin {
-    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {

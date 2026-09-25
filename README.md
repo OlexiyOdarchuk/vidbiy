@@ -94,27 +94,30 @@
 | [`app/`](app/) | Android-програма: Kotlin, Jetpack Compose, Material 3. Мережа — HttpURLConnection і org.json, без сторонніх бібліотек. |
 | [`web/`](web/) | Сайт (PWA): HTML, CSS і JavaScript без збирання. Публікується на GitHub Pages. |
 | [`worker/`](worker/) | Проксі на Cloudflare Worker. siren.pp.ua та ubilling не дозволяють браузерам читати свої дані з інших сайтів (немає CORS), тому сайт ходить через нього. Відповіді кешуються на 15 секунд. |
+| [`scripts/`](scripts/) | Збирання APK і сайту для Windows, Linux і macOS. |
 | [`tools/`](tools/) | Генератори: звуки (`make_sounds.py`), QR-коди (`make_qr.py`), прев'ю для соцмереж (`make_og.py`). |
 | [`docs/screenshots/`](docs/screenshots/) | Скріншоти для цього README. |
 
 ## Збирання й публікація
 
-**Android.** Потрібні JDK 17+ і Android SDK (compileSdk 36).
+Готові скрипти лежать у [`scripts/`](scripts/). Результат потрапляє в `dist/`.
+
+| Що | Windows | Linux і macOS |
+|---|---|---|
+| Android APK | `scripts\build-android.bat` (можна подвійним кліком) | `./scripts/build-android.sh` |
+| Сайт (Web/PWA) | `scripts\build-web.bat` | `./scripts/build-web.sh` |
+
+**Android.** Потрібні JDK 17–24 і Android SDK (найпростіше поставити Android Studio). Скрипт сам знаходить їх: у `JAVA_HOME` і `ANDROID_HOME`, у `PATH`, у `local.properties` і в стандартних місцях, зокрема JDK з Android Studio. Якщо чогось бракує, пояснить, що встановити. Результат: `dist/Vidbiy.apk` і `dist/Vidbiy-<версія>.apk`, обидва варто додавати до релізу. На другий веде постійне посилання `…/releases/latest/download/Vidbiy.apk` і QR-код на сайті.
+
+Кожен пуш у `main` також збирає APK у GitHub Actions ([`build.yml`](.github/workflows/build.yml)).
+
+**Сайт.** Потрібен лише Python 3.9+. Скрипт копіює `web/` у `dist/web` і додає до адрес файлів версію коміту, щоб кеш Cloudflare не віддав новий `index.html` зі старим `app.js`. З параметром `--serve` одразу запускає сайт на http://localhost:8000 (проксі дозволяє саме цей порт):
 
 ```sh
-./gradlew assembleRelease
-# app/build/outputs/apk/release/app-release.apk
+./scripts/build-web.sh --serve
 ```
 
-Кожен пуш у `main` збирає APK у GitHub Actions ([`build.yml`](.github/workflows/build.yml)). До релізу варто додавати файл і з версією (`Vidbiy-1.2.apk`), і без неї (`Vidbiy.apk`): на другий веде постійне посилання `…/releases/latest/download/Vidbiy.apk` і QR-код на сайті.
-
-**Сайт.** Для локальної перевірки:
-
-```sh
-python3 -m http.server 8000 --directory web   # http://localhost:8000 (проксі дозволяє цей порт)
-```
-
-Зміни в `web/` публікуються автоматично ([`pages.yml`](.github/workflows/pages.yml)). Під час публікації до адрес файлів додається версія коміту, щоб кеш Cloudflare не віддав новий `index.html` зі старим `app.js`.
+Зміни в `web/` публікуються автоматично ([`pages.yml`](.github/workflows/pages.yml)) тим самим скриптом.
 
 **Проксі.**
 
