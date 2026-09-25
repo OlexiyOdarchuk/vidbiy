@@ -21,14 +21,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WifiOff
@@ -119,14 +117,6 @@ fun SettingsScreen(
             )
             RowDivider()
             SettingsRow(
-                icon = Icons.Rounded.MusicNote,
-                title = "Звук будильника",
-                value = settings.soundLabel,
-                enabled = idle,
-                onClick = { onDialog(AppDialog.SOUND) },
-            )
-            RowDivider()
-            SettingsRow(
                 icon = Icons.Rounded.WifiOff,
                 title = "Будити, якщо зник зв'язок",
                 value = "Якщо жодне джерело не відповідає понад 5 хвилин",
@@ -183,14 +173,6 @@ fun SettingsScreen(
                 title = "Перевірити звук будильника",
                 enabled = idle,
                 onClick = actions.test,
-            )
-            RowDivider()
-            val uriHandler = LocalUriHandler.current
-            SettingsRow(
-                icon = Icons.Rounded.Code,
-                title = "Відкритий код на GitHub",
-                value = "Код, повідомлення про помилки й ідеї",
-                onClick = { uriHandler.openUri("https://github.com/OlexiyOdarchuk/vidbiy") },
             )
         }
         Spacer(Modifier.height(24.dp))

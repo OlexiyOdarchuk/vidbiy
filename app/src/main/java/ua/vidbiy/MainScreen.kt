@@ -8,6 +8,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -40,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,15 +54,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class SettingsState(val prefs: Prefs) {
+class SettingsState(private val prefs: Prefs) {
     var region by mutableStateOf(prefs.region)
         private set
     var cutoff by mutableIntStateOf(prefs.cutoffMinutes)
@@ -93,29 +103,6 @@ class SettingsState(val prefs: Prefs) {
         token = value
         prefs.token = value
     }
-
-    var soundId by mutableStateOf(prefs.soundId)
-        private set
-    var soundLabel by mutableStateOf(Sounds.displayName(prefs))
-        private set
-
-    fun updateSound(id: String) {
-        prefs.soundId = id
-        soundId = id
-        soundLabel = Sounds.displayName(prefs)
-    }
-
-    fun setSystemSound(uri: String, name: String?) {
-        prefs.systemSoundUri = uri
-        prefs.systemSoundName = name
-        updateSound(Sounds.SYSTEM_ID)
-    }
-
-    fun setCustomSound(uri: String, name: String?) {
-        prefs.customSoundUri = uri
-        prefs.customSoundName = name
-        updateSound(Sounds.CUSTOM_ID)
-    }
 }
 
 class Actions(
@@ -125,14 +112,13 @@ class Actions(
     val arm: () -> Unit,
     val stop: () -> Unit,
     val test: () -> Unit,
-    val pickSystemSound: () -> Unit,
-    val pickCustomSound: () -> Unit,
 )
 
-private enum class Screen { HOME, SETTINGS, REGION, SOUND }
+private enum class Screen { HOME, SETTINGS, REGION }
 
 @Composable
-fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, actions: Actions) {
+fun VidbiyApp(prefs: Prefs, permissions: Permissions, actions: Actions) {
+    val settings = remember { SettingsState(prefs) }
     val state by WatchRepo.state.collectAsStateWithLifecycle()
     var onboarded by remember { mutableStateOf(prefs.onboarded) }
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -147,19 +133,15 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
         return
     }
 
+    DemoGayMapNotifications(permissions.notifications)
+
     BackHandler(enabled = screen != Screen.HOME) {
-        screen = when (screen) {
-            Screen.REGION -> regionReturn
-            Screen.SOUND -> Screen.SETTINGS
-            else -> Screen.HOME
-        }
+        screen = if (screen == Screen.REGION) regionReturn else Screen.HOME
     }
     val openDialog: (AppDialog) -> Unit = {
         if (it == AppDialog.REGION) {
             regionReturn = screen
             screen = Screen.REGION
-        } else if (it == AppDialog.SOUND) {
-            screen = Screen.SOUND
         } else {
             dialog = it
         }
@@ -179,11 +161,6 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
                     actions = actions,
                     onBack = { screen = Screen.HOME },
                     onDialog = openDialog,
-                )
-                Screen.SOUND -> SoundScreen(
-                    settings = settings,
-                    actions = actions,
-                    onBack = { screen = Screen.SETTINGS },
                 )
                 Screen.REGION -> RegionScreen(
                     settings = settings,
@@ -228,7 +205,7 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
             onDismiss = { dialog = null },
         )
 
-        AppDialog.REGION, AppDialog.SOUND, null -> Unit
+        AppDialog.REGION, null -> Unit
     }
 }
 
@@ -258,7 +235,7 @@ private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
     }
 }
 
-enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND }
+enum class AppDialog { REGION, SOURCE, CUTOFF }
 
 @Composable
 private fun HomeScreen(
@@ -290,7 +267,7 @@ private fun HomeScreen(
 
             val (onOrb, hint) = when {
                 idle && !permissions.notifications -> actions.requestNotifications to "Торкніться, щоб дозволити сповіщення"
-                idle -> actions.arm to "Торкніться, щоб увімкнути"
+                idle -> actions.arm to "Торкніться, щоб ввімкнути режим пошуку підарасів"
                 state.phase == Phase.RINGING || state.phase == Phase.SNOOZED -> actions.stop to "Торкніться, щоб вимкнути"
                 else -> actions.stop to "Торкніться, щоб скасувати"
             }
@@ -316,7 +293,186 @@ private fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+                RetroMemeStrip()
+                PowerMeter()
+                NearbyDemoMap()
             }
+        }
+    }
+}
+
+@Composable
+private fun RetroMemeStrip() {
+    GlassCard(color = Night.Glass, border = Night.GlassBorder) {
+        Column(Modifier.padding(10.dp)) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("67", "1488", "67").forEach { meme ->
+                    Surface(
+                        shape = RoundedCornerShape(3.dp),
+                        color = Night.Blue,
+                        border = BorderStroke(1.dp, Night.Amber),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            meme,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NearbyDemoMap() {
+    var selected by remember { mutableStateOf<String?>(null) }
+    val markers = listOf(
+        Triple("Дядя Богдан", 34.dp, 40.dp),
+        Triple("Danger master", 150.dp, 92.dp),
+        Triple("Біллі Херінгтон", 245.dp, 28.dp),
+        Triple("Веселковий NPC", 285.dp, 135.dp),
+    )
+    GlassCard(color = Color(0xFF00FFB7), border = Color(0xFFFF0055)) {
+        Column(Modifier.padding(10.dp)) {
+            Text("ГЕЙ-КАРТА", style = MaterialTheme.typography.labelLarge, color = Color.Black)
+            Text(
+                "Натискайте на маркери, щоб обрати вигаданого персонажа",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Black,
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(190.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(0xFF8AE6FF)),
+            ) {
+                Text("КАРТА", color = Color(0xFF1200A8), modifier = Modifier.padding(8.dp))
+                DemoMapMarker("A", 34.dp, 40.dp, Color(0xFFFF0055)) { selected = markers[0].first }
+                DemoMapMarker("B", 150.dp, 92.dp, Color(0xFF7A00FF)) { selected = markers[1].first }
+                DemoMapMarker("C", 245.dp, 28.dp, Color(0xFFFF6600)) { selected = markers[2].first }
+                DemoMapMarker("D", 285.dp, 135.dp, Color(0xFF00A83B)) { selected = markers[3].first }
+                Surface(
+                    color = Color(0xFFFFEA00),
+                    border = BorderStroke(2.dp, Color.Black),
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(22.dp),
+                ) {}
+            }
+            if (selected != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$selected — хоче вас",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Black,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DemoGayMapNotifications(enabled: Boolean) {
+    val context = LocalContext.current
+    LaunchedEffect(enabled) {
+        if (!enabled) return@LaunchedEffect
+        val messages = listOf(
+            "Гей — 300 м від вас",
+            "Гей за вами спостерігає",
+            "Гей наближається",
+            "Гей активував веселковий режим",
+            "Гей помічений неподалік",
+            "Гей дивиться прямо на вас",
+            "Гей шукає пригоди",
+            "Дядя Богдан — 300 м від вас",
+            "Дядя Богдан прямує у вашу сторону",
+            "Дядя Богдан щойно зайшов у чат",
+            "Дядя Богдан рекомендує зайти в гості",
+            "Біллі Херінгтон задивляється на вас",
+            "Біллі Херінгтон у режимі очікування неподалік",
+            "Біллі Херінгтон схвалює ваш маршрут",
+            "Ван Дамм проїжджав повз — привітався",
+            "Сусід Толя знову вийшов на балкон",
+            "Хтось поставив лайк вашій геолокації",
+            "Рівень веселки в районі зашкалює",
+            "Активність зафіксовано в радіусі 500 м",
+            "У вашому районі стало на 1 гея більше",
+        )
+        while (true) {
+            delay(Random.nextLong(45_000L, 90_001L))
+            Notifications.info(context, messages.random()).let {
+                context.getSystemService(android.app.NotificationManager::class.java)
+                    .notify(Notifications.ID_INFO, it)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.DemoMapMarker(label: String, x: Dp, y: Dp, color: Color, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = color,
+        border = BorderStroke(2.dp, Color.Black),
+        shape = CircleShape,
+        modifier = Modifier
+            .offset(x = x, y = y)
+            .size(28.dp),
+    ) {
+        Text(
+            label,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun PowerMeter() {
+    GlassCard(color = Color(0xFFFF00FF), border = Color(0xFF00FF00)) {
+        Column(Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("ПОТУЖНОМЕТР", style = MaterialTheme.typography.labelLarge, color = Color.Black)
+                Spacer(Modifier.weight(1f))
+                Text("999%", style = MaterialTheme.typography.titleMedium, color = Color.Black)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf(
+                    Color.Red,
+                    Color(0xFFFF6600),
+                    Color.Yellow,
+                    Color.Green,
+                    Color.Cyan,
+                    Color.Blue,
+                    Color.Magenta,
+                    Color.Red,
+                    Color.Yellow,
+                    Color.Green,
+                    Color.Cyan,
+                    Color.Magenta,
+                ).forEach { color ->
+                    Surface(
+                        color = color,
+                        shape = RoundedCornerShape(0.dp),
+                        modifier = Modifier.weight(1f).height(18.dp),
+                    ) {}
+                }
+            }
+            Text(
+                "Вимірює приблизно все і нічого",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Black,
+            )
         }
     }
 }
@@ -364,16 +520,16 @@ private fun RegionChip(name: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun Hero(state: WatchState, onOrbClick: () -> Unit, hint: String, modifier: Modifier = Modifier) {
     val title = when (state.phase) {
-        Phase.IDLE -> "Будильник вимкнено"
-        Phase.WAITING_ALERT -> "Очікування тривоги"
-        Phase.ALERT -> "Триває тривога"
-        Phase.RINGING -> "Відбій!"
-        Phase.SNOOZED -> "Відкладено"
+        Phase.IDLE -> "Геї не знайдені"
+        Phase.WAITING_ALERT -> "Очікування пенетрації"
+        Phase.ALERT -> "Триває секс"
+        Phase.RINGING -> "Кінчив!"
+        Phase.SNOOZED -> "Джунжурик впав!"
     }
     val subtitle = when {
         state.phase == Phase.RINGING -> state.reason
         state.text.isNotEmpty() -> state.text
-        else -> "Якщо тривога застала під час сну, будильник пролунає одразу після відбою."
+        else -> "Якщо підарас застів під час сну, будильник пролунає одразу після сексу."
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {

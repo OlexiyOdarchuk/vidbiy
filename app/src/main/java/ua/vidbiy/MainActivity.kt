@@ -5,13 +5,11 @@ import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.RingtoneManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
-import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -35,41 +33,12 @@ class MainActivity : ComponentActivity() {
     private val notificationRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissions = readPermissions() }
 
-    private lateinit var settings: SettingsState
-
-    private val systemSoundPicker =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val uri = result.data?.let {
-                if (Build.VERSION.SDK_INT >= 33) {
-                    it.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    it.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-                }
-            } ?: return@registerForActivityResult
-            settings.setSystemSound(uri.toString(), RingtoneManager.getRingtone(this, uri)?.getTitle(this))
-        }
-
-    private val customSoundPicker =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri == null) return@registerForActivityResult
-            // Без постійного дозволу файл перестане відкриватися після перезапуску телефона.
-            try {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: SecurityException) {
-            }
-            val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-            settings.setCustomSound(uri.toString(), name)
-        }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         Notifications.createChannels(this)
         RegionTreeRepo.init(this)
         val prefs = Prefs(this)
-        settings = SettingsState(prefs)
 
         val actions = Actions(
             requestNotifications = {
@@ -80,13 +49,11 @@ class MainActivity : ComponentActivity() {
             arm = { WatchService.arm(this) },
             stop = { WatchService.send(this, WatchService.ACTION_STOP) },
             test = { WatchService.test(this) },
-            pickSystemSound = ::pickSystemSound,
-            pickCustomSound = { customSoundPicker.launch(arrayOf("audio/*")) },
         )
 
         setContent {
             VidbiyTheme {
-                VidbiyApp(prefs, settings, permissions, actions)
+                VidbiyApp(prefs, permissions, actions)
             }
         }
     }
@@ -114,19 +81,6 @@ class MainActivity : ComponentActivity() {
                 Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
             )
         }
-    }
-
-    private fun pickSystemSound() {
-        val current = settings.prefs.systemSoundUri?.let(Uri::parse)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        systemSoundPicker.launch(
-            Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Мелодія будильника")
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, current)
-        )
     }
 
     @SuppressLint("BatteryLife")

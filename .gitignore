@@ -4,4 +4,3 @@ app/build/
 local.properties
 *.apk
 .idea/
-.wrangler/

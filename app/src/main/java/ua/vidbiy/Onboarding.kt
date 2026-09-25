@@ -137,7 +137,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
         Spacer(Modifier.weight(1f))
         StatusOrb(Phase.IDLE, size = 240.dp)
         Spacer(Modifier.height(32.dp))
-        Text("Відбій", style = MaterialTheme.typography.displaySmall)
+        Text("Gay Тривога", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(12.dp))
         Text(
             "Тривога застала під час сну? Спіть далі. Будильник розбудить вас одразу після відбою.",

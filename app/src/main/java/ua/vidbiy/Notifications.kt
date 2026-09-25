@@ -66,7 +66,7 @@ object Notifications {
     fun info(context: Context, text: String): Notification =
         NotificationCompat.Builder(context, CH_INFO)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Будильник після відбою")
+            .setContentTitle("Гей-карта — демо")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)

@@ -87,9 +87,9 @@ fun GlassCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(4.dp),
         color = color,
-        border = BorderStroke(1.dp, border),
+        border = BorderStroke(2.dp, border),
     ) {
         Column(content = content)
     }
@@ -254,7 +254,7 @@ fun <T> ChoiceDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(3.dp))
                             .clickable { onSelect(value) }
                             .padding(vertical = 2.dp),
                     ) {
