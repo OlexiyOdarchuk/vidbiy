@@ -319,7 +319,54 @@ function setOrbPhase(el, phase) {
 }
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(navigator.userAgent);
 const isStandalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+const finePointer = matchMedia("(pointer: fine)").matches;
+const TAP = finePointer ? "Натисніть" : "Торкніться";
+
+const APK_URL = "https://github.com/OlexiyOdarchuk/vidbiy/releases/latest";
+const HOWTO = isIOS
+  ? {
+      title: "Як це працює на iPhone",
+      lead: "iPhone не дозволяє сайтам працювати у фоні, тому будильник працює, поки сторінка відкрита.",
+      cards: [
+        ["add", "Додайте на початковий екран", `У Safari натисніть <span class="inline-icon">${icon("share")}</span> «Поділитися» → «На початковий екран». Сайт відкриватиметься як окрема програма.`, "install-card"],
+        ["charge", "Поставте телефон на зарядку", "Залиште програму відкритою. Екран не гаснутиме, а сторінка затемниться майже до чорного."],
+        ["volume", "Увімкніть гучність", "Сигнал грає навіть у беззвучному режимі, але гучність береться з кнопок гучності. Додайте її перед сном."],
+      ],
+    }
+  : isAndroid
+    ? {
+        title: "Як це працює",
+        lead: "Сайт стежить за тривогою, поки сторінка відкрита. Для Android є програма, яка працює у фоні.",
+        cards: [
+          ["android", "Встановіть програму для Android", `Вона надійніша за сайт: будильник спрацює навіть на заблокованому телефоні. <a href="${APK_URL}" target="_blank" rel="noopener">Завантажити APK</a>`],
+          ["charge", "Або залиште сайт відкритим", "Поставте телефон на зарядку й не закривайте сторінку. Екран не гаснутиме, а сторінка затемниться."],
+          ["volume", "Увімкніть гучність", "Сигнал грає з гучністю медіа. Додайте її перед сном."],
+        ],
+      }
+    : {
+        title: "Як це працює",
+        lead: "Будильник стежить за тривогою, поки вкладка із сайтом відкрита.",
+        cards: [
+          ["computer", "Не закривайте вкладку", "Її можна не тримати на виду. У фоновій вкладці браузер перевіряє тривогу рідше, приблизно раз на хвилину."],
+          ["power", "Не присипляйте комп'ютер", "Вимкніть сплячий режим на ніч і не закривайте кришку ноутбука, інакше браузер зупиниться."],
+          ["volume", "Увімкніть звук", "Перевірте, що звук не вимкнено, а колонки чи навушники під'єднано."],
+        ],
+      };
+
+function renderHowto() {
+  $("howto-title").textContent = HOWTO.title;
+  $("howto-lead").textContent = HOWTO.lead;
+  $("row-howto-title").textContent = HOWTO.title;
+  $("howto-cards").innerHTML = HOWTO.cards
+    .map(([ic, title, text, id]) => `
+      <div class="card info"${id ? ` id="${id}"` : ""}>
+        <span class="badge">${icon(ic)}</span>
+        <div><h3>${title}</h3><p>${text}</p></div>
+      </div>`)
+    .join("");
+}
 
 function render() {
   const idle = watch.phase === "IDLE";
@@ -330,7 +377,7 @@ function render() {
   $("region-chip").querySelector("[data-icon=down]").hidden = !idle;
 
   setOrbPhase($("main-orb"), watch.phase);
-  $("hint-text").textContent = idle ? "Торкніться, щоб увімкнути" : ringing ? "Торкніться, щоб вимкнути" : "Торкніться, щоб скасувати";
+  $("hint-text").textContent = `${TAP}, щоб ${idle ? "увімкнути" : ringing ? "вимкнути" : "скасувати"}`;
   $("title").textContent = {
     IDLE: "Будильник вимкнено",
     WAITING_ALERT: "Очікування тривоги",
@@ -341,7 +388,7 @@ function render() {
   $("subtitle").textContent =
     watch.phase === "RINGING" ? watch.reason
       : watch.text || (interrupted
-        ? "Будильник було перервано: сторінку закрили або оновили. Торкніться місяця, щоб продовжити."
+        ? `Будильник було перервано: сторінку закрили або оновили. ${finePointer ? "Натисніть на місяць" : "Торкніться місяця"}, щоб продовжити.`
         : "Якщо тривога застала під час сну, будильник пролунає одразу після відбою.");
 
   const source = $("source");
@@ -389,7 +436,7 @@ function goStep(n) {
   step = n;
   document.querySelectorAll("#onboarding .step").forEach((s) => s.classList.toggle("active", +s.dataset.step === n));
   document.querySelectorAll("#onboarding .steps i").forEach((d, i) => d.classList.toggle("on", i <= n));
-  $("install-card").classList.toggle("done", isStandalone());
+  $("install-card")?.classList.toggle("done", isStandalone());
 }
 document.querySelectorAll("#onboarding [data-next]").forEach((b) =>
   b.addEventListener("click", () => {
@@ -498,8 +545,10 @@ function toast(text) {
 
 // ---------- Старт ----------
 
+renderHowto();
 fillIcons();
 document.querySelectorAll(".orb").forEach(setupOrb);
+document.querySelector(".night-tip").textContent = `${TAP}, щоб показати`;
 $("alarm-clock").textContent = hhmm(new Date());
 render();
 if (settings.onboarded) {

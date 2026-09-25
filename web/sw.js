@@ -1,6 +1,6 @@
 // Кешує оболонку сайту, щоб він швидко відкривався й запускався без мережі.
 // Дані про тривоги йдуть через проксі на іншому домені й ніколи не кешуються тут.
-const CACHE = "vidbiy-v1";
+const CACHE = "vidbiy-v2";
 const SHELL = [
   "./", "index.html", "style.css", "app.js", "icons.js", "regions.js",
   "alarm.mp3", "nosleep.mp4", "manifest.webmanifest",

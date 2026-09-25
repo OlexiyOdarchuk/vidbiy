@@ -278,3 +278,62 @@ dialog input[type="time"] {
 /* На невисоких екранах коло менше, щоб плитки вміщалися. */
 .orb.big { width: min(250px, 62vw, 30dvh); height: min(250px, 62vw, 30dvh); }
 #home .hero { padding: 8px 0; gap: 6px; }
+
+.card a { color: var(--amber); font-weight: 600; }
+.desktop-only { display: none; }
+
+/* ---------- Комп'ютер ---------- */
+@media (min-width: 900px) and (min-height: 560px) {
+  body { display: grid; place-items: center; min-height: 100dvh; padding: 24px; }
+  .desktop-only { display: revert; }
+
+  /* Налаштування, вибір регіону й знайомство — панель по центру. */
+  .screen {
+    width: min(600px, 100%); max-width: none; min-height: 0; margin: 0;
+    padding: 28px 32px 32px; border-radius: 32px;
+    background: rgba(255, 255, 255, 0.035); border: 1px solid var(--glass-border);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  }
+  #onboarding, #region { height: min(760px, calc(100dvh - 48px)); }
+  #settings { max-height: calc(100dvh - 48px); overflow-y: auto; }
+  #onboarding .step[data-step="0"] .orb, #onboarding .step[data-step="3"] .orb { width: 240px; height: 240px; }
+
+  /* Головний екран: коло ліворуч, налаштування праворуч. */
+  #home {
+    width: min(1040px, 100%);
+    display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    grid-template-rows: auto 1fr; column-gap: 56px;
+    padding: 28px 40px 40px;
+  }
+  #home .topbar { grid-column: 1 / -1; margin-bottom: 12px; }
+  #home .topbar .chip { margin-right: auto; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; font-size: 19px; margin-right: 12px; }
+  .brand img { border-radius: 8px; }
+  #home .hero { padding: 24px 0 8px; gap: 10px; }
+  #home .orb.big { width: 300px; height: 300px; }
+  #home .bottom { align-self: center; gap: 16px; }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .tile { transition: background .15s, border-color .15s; }
+  .tile:not(:disabled):hover, .row:not(:disabled):hover, .item:hover, .chip:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.11);
+  }
+  button.orb.big:hover .core { border-color: color-mix(in srgb, var(--c) 85%, transparent); }
+  .btn.primary:hover { filter: brightness(1.06); }
+
+  .how {
+    margin: 4px 0 0; padding: 20px 20px 20px 22px; list-style: none; counter-reset: how;
+    border-radius: 24px; border: 1px solid var(--glass-border);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .how li { counter-increment: how; display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; }
+  .how li::before {
+    content: counter(how); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700; font-size: 14px;
+    color: var(--amber); background: rgba(255, 194, 71, 0.14);
+  }
+  .how b { font-weight: 600; }
+  .how span { color: var(--text-dim); font-size: 14px; }
+
+  .step > h2, .step .scroll h2 { margin-top: 12px; }
+  #toast { bottom: 32px; }
+}

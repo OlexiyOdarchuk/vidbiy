@@ -32,31 +32,9 @@
 
     <div class="step" data-step="1">
       <div class="grow scroll">
-        <h2>Як це працює на iPhone</h2>
-        <p class="lead">iPhone не дозволяє сайтам працювати у фоні, тому будильник працює, поки сторінка відкрита.</p>
-        <div class="cards">
-          <div class="card info" id="install-card">
-            <span class="badge" data-icon="add"></span>
-            <div>
-              <h3>Додайте на початковий екран</h3>
-              <p>У Safari натисніть <span class="inline-icon" data-icon="share"></span> «Поділитися» → «На початковий екран». Сайт відкриватиметься як окрема програма.</p>
-            </div>
-          </div>
-          <div class="card info">
-            <span class="badge" data-icon="charge"></span>
-            <div>
-              <h3>Поставте телефон на зарядку</h3>
-              <p>Залиште програму відкритою. Екран не гаснутиме, а сторінка затемниться майже до чорного.</p>
-            </div>
-          </div>
-          <div class="card info">
-            <span class="badge" data-icon="volume"></span>
-            <div>
-              <h3>Увімкніть гучність</h3>
-              <p>Сигнал грає навіть у беззвучному режимі, але гучність береться з кнопок гучності. Додайте її перед сном.</p>
-            </div>
-          </div>
-        </div>
+        <h2 id="howto-title"></h2>
+        <p class="lead" id="howto-lead"></p>
+        <div class="cards" id="howto-cards"></div>
       </div>
       <button class="btn primary" data-next>Зрозуміло</button>
     </div>
@@ -82,6 +60,7 @@
   <!-- Головний екран -->
   <section id="home" class="screen" hidden>
     <header class="topbar">
+      <span class="brand desktop-only"><img src="icons/favicon.svg" alt="" width="28" height="28">Відбій</span>
       <button class="chip" id="region-chip"><span data-icon="pin"></span><span id="region-name"></span><span data-icon="down" class="dim"></span></button>
       <button class="icon-btn" id="open-settings" aria-label="Налаштування"><span data-icon="gear"></span></button>
     </header>
@@ -103,6 +82,11 @@
         <button class="tile" id="tile-cutoff"><span data-icon="clock"></span><small>Не будити після</small><b id="cutoff-value"></b></button>
         <button class="tile" id="tile-conn"><span data-icon="warn"></span><small>Якщо зник зв'язок</small><b id="conn-value"></b></button>
       </div>
+      <ol class="how desktop-only">
+        <li><b>Оберіть місце</b><span>Область, район або громаду, де ви навчаєтесь чи працюєте.</span></li>
+        <li><b>Натисніть на місяць</b><span>Коли тривога застала під час сну. Вкладку не закривайте.</span></li>
+        <li><b>Прокиньтеся після відбою</b><span>Пролунає гучний сигнал. Вимкнути його можна однією кнопкою.</span></li>
+      </ol>
     </div>
   </section>
 
@@ -123,7 +107,7 @@
       <h4>Інше</h4>
       <div class="group">
         <button class="row" id="row-test"><span class="badge" data-icon="volume"></span><span><b>Перевірити звук будильника</b></span><span data-icon="right" class="dim"></span></button>
-        <button class="row" id="row-howto"><span class="badge" data-icon="info"></span><span><b>Як це працює на iPhone</b></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-howto"><span class="badge" data-icon="info"></span><span><b id="row-howto-title">Як це працює</b></span><span data-icon="right" class="dim"></span></button>
         <a class="row" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest" target="_blank" rel="noopener"><span class="badge" data-icon="android"></span><span><b>Програма для Android</b><small>Працює у фоні, навіть коли телефон заблоковано</small></span><span data-icon="right" class="dim"></span></a>
       </div>
       <p class="foot">Дані: siren.pp.ua (ukrainealarm), запасне джерело — ubilling.net.ua. Жодне джерело не гарантує 100% надійності, тож для важливих подій варто мати й звичайний будильник.</p>
