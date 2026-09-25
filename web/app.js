@@ -35,13 +35,19 @@ const settings = load(SETTINGS_KEY, {
   onboarded: false,
   sound: DEFAULT_SOUND,
   customName: "",
+  // Будильник на час: дні бітами, біт 0 — понеділок … біт 6 — неділя; 0 — один раз.
+  schedule: { enabled: false, minutes: 7 * 60 + 30, days: 0b0011111 },
 });
 const saveSettings = () => save(SETTINGS_KEY, settings);
 
 // ---------- Стан очікування ----------
 
 const watch = {
-  phase: "IDLE", // IDLE | WAITING_ALERT | ALERT | RINGING | SNOOZED
+  phase: "IDLE", // IDLE | SCHEDULED | WAITING_ALERT | ALERT | RINGING | SNOOZED
+  scheduleAt: 0, // коли спрацює будильник на час (у фазі SCHEDULED)
+  scheduleRun: false, // очікування запущене будильником на час
+  scheduleLabel: "",
+  runStartedAt: 0,
   text: "",
   reason: "",
   source: "",
@@ -57,7 +63,12 @@ const watch = {
 // Якщо сторінку закрили чи оновили під час очікування, запропонуємо продовжити.
 let interrupted = load(WATCH_KEY, { armed: false }).armed ? load(WATCH_KEY, {}) : null;
 const persistWatch = () =>
-  save(WATCH_KEY, { armed: watch.phase !== "IDLE" && !watch.test, sawAlert: watch.sawAlert, cutoffAt: watch.cutoffAt });
+  save(WATCH_KEY, {
+    armed: watch.phase !== "IDLE" && !watch.test,
+    sawAlert: watch.sawAlert,
+    cutoffAt: watch.cutoffAt,
+    scheduleAt: watch.phase === "SCHEDULED" ? watch.scheduleAt : 0,
+  });
 
 // ---------- Дані про тривоги ----------
 
@@ -156,7 +167,31 @@ async function arm(resume = null) {
   const unlocked = unlockAudio();
   keepScreenOn();
   clearTimeout(watch.timer);
+  // Після перезавантаження сторінки продовжуємо чекати той самий час; якщо він уже минув,
+  // scheduleTick одразу запустить перевірку «за розкладом».
+  const scheduleAt = resume ? resume.scheduleAt || 0 : settings.schedule.enabled ? nextScheduleAt() : 0;
+  if (scheduleAt) {
+    Object.assign(watch, {
+      phase: "SCHEDULED",
+      text: "",
+      reason: "",
+      source: "",
+      sawAlert: false,
+      scheduleAt,
+      scheduleRun: false,
+      generation: watch.generation + 1,
+      test: false,
+    });
+    interrupted = null;
+    persistWatch();
+    render();
+    bumpNight();
+    await unlocked;
+    scheduleTick();
+    return;
+  }
   Object.assign(watch, {
+    scheduleRun: false,
     phase: resume?.sawAlert ? "ALERT" : "WAITING_ALERT",
     text: "Перевірка стану тривоги…",
     reason: "",
@@ -176,11 +211,79 @@ async function arm(resume = null) {
   tick();
 }
 
+const WEEKDAYS = 0b0011111;
+const EVERY_DAY = 0b1111111;
+const WEEKEND = 0b1100000;
+const SHORT_DAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"];
+const IN_DAY = ["у понеділок", "у вівторок", "у середу", "у четвер", "у п'ятницю", "у суботу", "у неділю"];
+
+function nextScheduleAt(now = new Date()) {
+  const { minutes, days } = settings.schedule;
+  for (let i = 0; i <= 7; i++) {
+    const t = new Date(now);
+    t.setDate(t.getDate() + i);
+    t.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    if (t <= now) continue;
+    const dow = (t.getDay() + 6) % 7; // понеділок = 0
+    if (days === 0 || days & (1 << dow)) return t.getTime();
+  }
+  return 0;
+}
+
+function describeDays(days) {
+  if (days === 0) return "Один раз";
+  if (days === EVERY_DAY) return "Щодня";
+  if (days === WEEKDAYS) return "Будні";
+  if (days === WEEKEND) return "Вихідні";
+  return SHORT_DAYS.filter((_, i) => days & (1 << i)).join(", ");
+}
+
+/** «сьогодні о 07:30», «завтра о 07:30», «у понеділок о 07:30». */
+function describeWhen(at) {
+  const d = new Date(at);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((new Date(d).setHours(0, 0, 0, 0) - today) / 86_400_000);
+  const day = diff === 0 ? "сьогодні" : diff === 1 ? "завтра" : IN_DAY[(d.getDay() + 6) % 7];
+  return `${day} о ${hhmm(d)}`;
+}
+
 function nextOccurrence(minutes) {
   const t = new Date();
   t.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
   if (t <= new Date()) t.setDate(t.getDate() + 1);
   return t.getTime();
+}
+
+// Таймери у браузері можуть відставати, тому не чекаємо одним setTimeout, а звіряємо годинник.
+function scheduleTick() {
+  clearTimeout(watch.timer);
+  if (watch.phase !== "SCHEDULED") return;
+  if (Date.now() >= watch.scheduleAt) {
+    startScheduledRun();
+    return;
+  }
+  render();
+  watch.timer = setTimeout(scheduleTick, Math.min(15_000, Math.max(500, watch.scheduleAt - Date.now())));
+}
+
+function startScheduledRun() {
+  watch.scheduleLabel = hhmm(new Date(watch.scheduleAt));
+  if (settings.schedule.days === 0) {
+    settings.schedule.enabled = false; // одноразовий будильник вимикається, щойно спрацював
+    saveSettings();
+  }
+  Object.assign(watch, {
+    phase: "WAITING_ALERT",
+    scheduleRun: true,
+    runStartedAt: Date.now(),
+    text: `Будильник о ${watch.scheduleLabel}: перевірка тривоги…`,
+    lastOk: Date.now(),
+    cutoffAt: settings.cutoff >= 0 ? nextOccurrence(settings.cutoff) : 0,
+  });
+  persistWatch();
+  render();
+  tick();
 }
 
 async function tick() {
@@ -203,12 +306,17 @@ async function tick() {
     if (r.status !== "NONE") {
       watch.sawAlert = true;
       watch.phase = "ALERT";
+      const lead = watch.scheduleRun ? `Будильник о ${watch.scheduleLabel} чекає: ` : "";
       watch.text = r.status === "PARTIAL"
-        ? "Тривога в частині регіону. Будильник пролунає після відбою в усьому регіоні."
-        : "Будильник пролунає після відбою.";
+        ? `${lead}${lead ? "т" : "Т"}ривога в частині регіону. ${lead ? "Розбудить" : "Будильник пролунає"} після відбою в усьому регіоні.`
+        : lead ? `${lead}триває тривога. Розбудить після відбою.` : "Будильник пролунає після відбою.";
       persistWatch();
     } else if (watch.sawAlert) {
       ring(`Відбій тривоги: ${region.name}`);
+      return;
+    } else if (watch.scheduleRun) {
+      // Настав час будильника, а тривоги немає — будимо, як звичайний будильник.
+      ring(`Будильник о ${watch.scheduleLabel}`);
       return;
     } else {
       watch.phase = "WAITING_ALERT";
@@ -216,6 +324,11 @@ async function tick() {
     }
   } catch (e) {
     if (gen !== watch.generation) return;
+    // Не знаємо, чи є тривога, — краще розбудити, ніж проспати.
+    if (watch.scheduleRun && !watch.sawAlert && Date.now() - watch.runStartedAt >= 60_000) {
+      ring(`Будильник о ${watch.scheduleLabel} (не вдалося перевірити тривогу)`);
+      return;
+    }
     if (settings.alarmOnNoConnection && Date.now() - watch.lastOk >= NO_CONNECTION_MS) {
       ring("Понад 5 хв немає зв'язку з жодним джерелом даних про тривоги");
       return;
@@ -258,7 +371,9 @@ function finish(message = "") {
   clearTimeout(watch.timer);
   sound.pause();
   releaseScreen();
-  Object.assign(watch, { phase: "IDLE", text: message, reason: "", source: "", sawAlert: false, test: false });
+  Object.assign(watch, {
+    phase: "IDLE", text: message, reason: "", source: "", sawAlert: false, test: false, scheduleRun: false, scheduleAt: 0,
+  });
   watch.generation++;
   persistWatch();
   $("alarm").hidden = true;
@@ -274,13 +389,13 @@ let nightClock = 0;
 
 function bumpNight() {
   clearTimeout(nightTimer);
-  if (["WAITING_ALERT", "ALERT", "SNOOZED"].includes(watch.phase)) {
+  if (["SCHEDULED", "WAITING_ALERT", "ALERT", "SNOOZED"].includes(watch.phase)) {
     nightTimer = setTimeout(showNight, NIGHT_AFTER_MS);
   }
 }
 
 function showNight() {
-  if (!["WAITING_ALERT", "ALERT", "SNOOZED"].includes(watch.phase) || !$("alarm").hidden) return;
+  if (!["SCHEDULED", "WAITING_ALERT", "ALERT", "SNOOZED"].includes(watch.phase) || !$("alarm").hidden) return;
   $("night").hidden = false;
   updateNight();
   clearInterval(nightClock);
@@ -295,7 +410,12 @@ function hideNight() {
 function updateNight() {
   const now = new Date();
   $("night-clock").textContent = hhmm(now);
-  const status = { WAITING_ALERT: "Чекаю на тривогу", ALERT: "Триває тривога", SNOOZED: "Будильник відкладено" }[watch.phase] ?? "";
+  const status = {
+    SCHEDULED: `Будильник о ${hhmm(new Date(watch.scheduleAt))}`,
+    WAITING_ALERT: "Чекаю на тривогу",
+    ALERT: "Триває тривога",
+    SNOOZED: "Будильник відкладено",
+  }[watch.phase] ?? "";
   $("night-status").textContent = `${status} · ${settings.region.name}`;
   // Трохи зсуваємо текст щохвилини, щоб не вигорав екран.
   if (now.getSeconds() === 0) {
@@ -323,11 +443,12 @@ document.addEventListener("visibilitychange", () => {
     toast(`Сторінка була згорнута ${Math.max(1, Math.round(gone / 60_000))} хв, у цей час будильник не стежив за тривогою`);
   }
   if (watch.phase === "WAITING_ALERT" || watch.phase === "ALERT") tick();
+  if (watch.phase === "SCHEDULED") scheduleTick();
 });
 
 // ---------- Інтерфейс ----------
 
-const ORB_ICONS = { IDLE: "bedtime", WAITING_ALERT: "radar", ALERT: "campaign", RINGING: "alarm", SNOOZED: "snooze" };
+const ORB_ICONS = { IDLE: "bedtime", SCHEDULED: "alarm", WAITING_ALERT: "radar", ALERT: "campaign", RINGING: "alarm", SNOOZED: "snooze" };
 
 function setupOrb(el) {
   el.innerHTML = `<span class="ring"></span><span class="ring"></span><span class="ring"></span><span class="core"></span>`;
@@ -398,9 +519,13 @@ function render() {
   $("region-chip").querySelector("[data-icon=down]").hidden = !idle;
 
   setOrbPhase($("main-orb"), watch.phase);
-  $("hint-text").textContent = `${TAP}, щоб ${idle ? "увімкнути" : ringing ? "вимкнути" : "скасувати"}`;
+  const sch = settings.schedule;
+  const nextAt = sch.enabled ? nextScheduleAt() : 0;
+  $("hint-text").textContent = `${TAP}, щоб ${
+    idle ? (nextAt ? "увімкнути на ніч" : "увімкнути") : ringing ? "вимкнути" : "скасувати"}`;
   $("title").textContent = {
-    IDLE: "Будильник вимкнено",
+    IDLE: nextAt ? `Будильник о ${fmtMinutes(sch.minutes)}` : "Будильник вимкнено",
+    SCHEDULED: `Будильник о ${hhmm(new Date(watch.scheduleAt))}`,
     WAITING_ALERT: "Очікування тривоги",
     ALERT: "Триває тривога",
     RINGING: "Відбій!",
@@ -408,9 +533,13 @@ function render() {
   }[watch.phase];
   $("subtitle").textContent =
     watch.phase === "RINGING" ? watch.reason
+      : watch.phase === "SCHEDULED"
+        ? `Спрацює ${describeWhen(watch.scheduleAt)}. Якщо тоді буде тривога, розбудить після відбою. Не закривайте сторінку.`
       : watch.text || (interrupted
         ? `Будильник було перервано: сторінку закрили або оновили. ${finePointer ? "Натисніть на місяць" : "Торкніться місяця"}, щоб продовжити.`
-        : "Якщо тривога застала під час сну, будильник пролунає одразу після відбою.");
+        : nextAt
+          ? `Спрацює ${describeWhen(nextAt)}. ${TAP} перед сном і не закривайте сторінку.`
+          : "Якщо тривога застала під час сну, будильник пролунає одразу після відбою.");
 
   const source = $("source");
   source.hidden = idle || !watch.source;
@@ -434,11 +563,45 @@ function render() {
   $("row-sound-value").textContent = soundName(settings.sound, settings.customName);
   $("row-sound").disabled = !idle;
   $("region-next").textContent = `Далі: ${settings.region.name}`;
+  renderSchedule(idle);
+}
+
+function renderSchedule(idle) {
+  const sch = settings.schedule;
+  $("schedule-card-switch").checked = sch.enabled;
+  $("schedule-switch").checked = sch.enabled;
+  $("schedule-card-time").textContent = sch.enabled ? fmtMinutes(sch.minutes) : "Вимкнено";
+  $("schedule-card-sub").textContent = sch.enabled
+    ? describeDays(sch.days)
+    : "Розбудить у заданий час, а під час тривоги — після відбою";
+  $("row-schedule-value").textContent = sch.enabled ? `${fmtMinutes(sch.minutes)} · ${describeDays(sch.days)}` : "Вимкнено";
+  // Поки йде очікування, розклад не змінюємо: воно вже прив'язане до часу.
+  for (const id of ["schedule-card-switch", "schedule-switch", "schedule-time"]) $(id).disabled = !idle;
+  if (document.activeElement !== $("schedule-time")) $("schedule-time").value = fmtMinutes(sch.minutes);
+  const nextAt = sch.enabled ? nextScheduleAt() : 0;
+  $("schedule-next").textContent = nextAt ? `Спрацює ${describeWhen(nextAt)}` : "Будильник вимкнено";
+  $("schedule-days").innerHTML = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+    .map((d, i) => `<button data-bit="${1 << i}" class="${sch.days & (1 << i) ? "on" : ""}"${idle ? "" : " disabled"}>${d}</button>`)
+    .join("");
+  $("schedule-presets").innerHTML = [["Будні", WEEKDAYS], ["Щодня", EVERY_DAY], ["Вихідні", WEEKEND], ["Один раз", 0]]
+    .map(([label, days]) => `<button data-days="${days}" class="${sch.days === days ? "on" : ""}"${idle ? "" : " disabled"}>${label}</button>`)
+    .join("");
+  const custom = ![WEEKDAYS, EVERY_DAY, WEEKEND].includes(sch.days);
+  $("schedule-days-note").hidden = !custom;
+  $("schedule-days-note").textContent = sch.days === 0
+    ? "Один раз: після спрацювання будильник вимкнеться"
+    : describeDays(sch.days);
+}
+
+function updateSchedule(patch) {
+  Object.assign(settings.schedule, patch);
+  saveSettings();
+  render();
 }
 
 // ---------- Екрани ----------
 
-const SCREENS = ["get-android", "install-ios", "onboarding", "home", "settings", "region", "sounds"];
+const SCREENS = ["get-android", "install-ios", "onboarding", "home", "settings", "region", "sounds", "schedule"];
 let regionReturn = "home";
 let howtoOnly = false;
 
@@ -508,10 +671,47 @@ document.querySelectorAll("[data-back]").forEach((b) =>
       if (!screenPicker.back()) show(regionReturn);
     } else if (!$("sounds").hidden) {
       show("settings");
+    } else if (!$("schedule").hidden) {
+      show(scheduleReturn);
     } else {
       show("home");
     }
   }));
+
+// Будильник на час
+let scheduleReturn = "home";
+function openSchedule() {
+  scheduleReturn = $("settings").hidden ? "home" : "settings";
+  show("schedule");
+}
+$("schedule-card").addEventListener("click", (e) => {
+  if (e.target.closest(".switch")) return;
+  openSchedule();
+});
+$("schedule-card").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && !e.target.closest(".switch")) {
+    e.preventDefault();
+    openSchedule();
+  }
+});
+$("row-schedule").addEventListener("click", openSchedule);
+for (const id of ["schedule-card-switch", "schedule-switch"]) {
+  $(id).addEventListener("change", (e) => updateSchedule({ enabled: e.target.checked }));
+}
+$("schedule-time").addEventListener("change", (e) => {
+  if (!e.target.value) return;
+  const [h, m] = e.target.value.split(":").map(Number);
+  // Змінили час — отже, хочуть, щоб будильник працював.
+  updateSchedule({ minutes: h * 60 + m, enabled: true });
+});
+$("schedule-days").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-bit]");
+  if (b) updateSchedule({ days: settings.schedule.days ^ Number(b.dataset.bit) });
+});
+$("schedule-presets").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-days]");
+  if (b) updateSchedule({ days: Number(b.dataset.days) });
+});
 
 // Головний екран
 $("main-orb").addEventListener("click", () => {

@@ -129,6 +129,15 @@
         <span data-icon="add"></span>
         <p>Додайте на початковий екран: <span class="inline-icon" data-icon="share"></span> «Поділитися» → «На початковий екран».</p>
       </div>
+      <div class="schedule-card" id="schedule-card" role="button" tabindex="0">
+        <span class="badge" data-icon="alarm"></span>
+        <span class="schedule-text">
+          <small>Будильник на час</small>
+          <b id="schedule-card-time"></b>
+          <small id="schedule-card-sub"></small>
+        </span>
+        <input type="checkbox" class="switch" id="schedule-card-switch" aria-label="Будильник на час">
+      </div>
       <div class="tiles">
         <button class="tile" id="tile-cutoff"><span data-icon="clock"></span><small>Не будити після</small><b id="cutoff-value"></b></button>
         <button class="tile" id="tile-conn"><span data-icon="warn"></span><small>Якщо зник зв'язок</small><b id="conn-value"></b></button>
@@ -166,6 +175,7 @@
       <p class="notice" id="settings-locked" hidden>Налаштування можна змінити, коли будильник вимкнено.</p>
       <h4>Будильник</h4>
       <div class="group">
+        <button class="row" id="row-schedule"><span class="badge" data-icon="alarm"></span><span><b>Будильник на час</b><small id="row-schedule-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-region"><span class="badge" data-icon="pin"></span><span><b>Регіон</b><small id="row-region-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-cutoff"><span class="badge" data-icon="clock"></span><span><b>Не будити після</b><small id="row-cutoff-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-sound"><span class="badge" data-icon="music"></span><span><b>Звук будильника</b><small id="row-sound-value"></small></span><span data-icon="right" class="dim"></span></button>
@@ -198,6 +208,38 @@
       <h2 class="bar-title">Звук будильника</h2>
     </header>
     <div class="scroll grow" id="sound-list"></div>
+  </section>
+
+  <!-- Будильник на час -->
+  <section id="schedule" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Будильник на час</h2>
+      <input type="checkbox" class="switch" id="schedule-switch" aria-label="Увімкнено" style="margin-left:auto">
+    </header>
+    <div class="scroll grow">
+      <label class="schedule-time">
+        <input type="time" id="schedule-time" aria-label="Час будильника">
+      </label>
+      <p class="lead center-text" id="schedule-next"></p>
+      <h4>Дні</h4>
+      <div class="group pad">
+        <div class="days" id="schedule-days"></div>
+        <div class="presets" id="schedule-presets"></div>
+        <p class="hint-text" id="schedule-days-note" hidden></p>
+      </div>
+      <h4>Як це працює</h4>
+      <div class="group pad">
+        <ul class="how-list">
+          <li>Перед сном торкніться місяця й не закривайте сторінку: вона чекатиме заданого часу.</li>
+          <li>У цей час програма перевіряє, чи є тривога у вашому регіоні.</li>
+          <li>Тривоги немає — будильник дзвонить одразу, як звичайний.</li>
+          <li>Триває тривога — будильник чекає й будить після відбою.</li>
+          <li>«Не будити після» діє й тут: якщо відбій настане пізніше, будильник промовчить.</li>
+          <li>Немає інтернету — будильник дзвонить за розкладом, щоб ви не проспали.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- Нічний режим: затемнений екран, поки чекаємо на відбій -->
