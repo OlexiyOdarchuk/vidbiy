@@ -3,7 +3,8 @@ package ua.vidbiy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-enum class Phase { IDLE, WAITING_ALERT, ALERT, RINGING, SNOOZED }
+/** CLEARING — відбій уже настав, але будильник чекає, чи втримається він (якщо так налаштовано). */
+enum class Phase { IDLE, WAITING_ALERT, ALERT, CLEARING, RINGING, SNOOZED }
 
 data class WatchState(
     val phase: Phase = Phase.IDLE,

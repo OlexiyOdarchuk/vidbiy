@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Відбій</string>
+    <string name="widget_description">Стан будильника: дотик вмикає чи вимикає очікування відбою</string>
+    <string name="widget_open">Відкрити програму</string>
 </resources>

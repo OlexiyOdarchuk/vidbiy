@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Snooze
 import androidx.compose.material3.AlertDialog
@@ -101,6 +102,7 @@ private fun orbStyle(phase: Phase) = when (phase) {
     Phase.IDLE -> OrbStyle(Icons.Rounded.Bedtime, Night.Blue, null)
     Phase.WAITING_ALERT -> OrbStyle(Icons.Rounded.Radar, Night.Blue, 2800)
     Phase.ALERT -> OrbStyle(Icons.Rounded.Campaign, Night.Red, 1800)
+    Phase.CLEARING -> OrbStyle(Icons.Rounded.HourglassTop, Night.Green, 2400)
     Phase.RINGING -> OrbStyle(Icons.Rounded.Alarm, Night.Amber, 1100)
     Phase.SNOOZED -> OrbStyle(Icons.Rounded.Snooze, Night.Amber, 2800)
 }

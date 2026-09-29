@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WifiOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -72,33 +73,99 @@ class SettingsState(val prefs: Prefs, private val onScheduleChange: () -> Unit =
     var token by mutableStateOf(prefs.token)
         private set
 
-    var scheduleEnabled by mutableStateOf(prefs.scheduleEnabled)
+    var alarms by mutableStateOf(prefs.alarms)
         private set
-    var scheduleMinutes by mutableIntStateOf(prefs.scheduleMinutes)
+    var nightRules by mutableStateOf(prefs.nightRules)
         private set
-    var scheduleDays by mutableIntStateOf(prefs.scheduleDays)
-        private set
-    var scheduleNext by mutableStateOf(AlarmScheduler.describeNext(prefs))
+    /** Найближче спрацювання будильника на час (з урахуванням перенесеного правилом). */
+    var nextAlarm by mutableStateOf(AlarmScheduler.next(prefs)?.first)
         private set
 
-    fun updateSchedule(
-        enabled: Boolean = scheduleEnabled,
-        minutes: Int = scheduleMinutes,
-        days: Int = scheduleDays,
-    ) {
-        prefs.scheduleEnabled = enabled
-        prefs.scheduleMinutes = minutes
-        prefs.scheduleDays = days
+    val anyAlarmEnabled get() = alarms.any { it.enabled }
+
+    fun newAlarm() = Alarm(id = (alarms.maxOfOrNull { it.id } ?: 0) + 1)
+
+    fun saveAlarm(alarm: Alarm) {
+        prefs.alarms = if (alarms.any { it.id == alarm.id }) alarms.map { if (it.id == alarm.id) alarm else it } else alarms + alarm
+        scheduleChanged()
+    }
+
+    fun deleteAlarm(id: Int) {
+        prefs.alarms = alarms.filter { it.id != id }
+        if (prefs.shiftAlarmId == id) prefs.shiftAt = 0
+        scheduleChanged()
+    }
+
+    /** Перемикач на головному екрані: вмикає чи вимикає всі будильники на час. */
+    fun setAlarmsEnabled(enabled: Boolean) {
+        prefs.alarms = when {
+            !enabled -> alarms.map { it.copy(enabled = false) }
+            alarms.isEmpty() -> listOf(newAlarm())
+            else -> alarms.map { it.copy(enabled = true) }
+        }
+        if (!enabled) prefs.shiftAt = 0
+        scheduleChanged()
+    }
+
+    fun newRuleId() = (nightRules.maxOfOrNull { it.id } ?: 0) + 1
+
+    fun saveRule(rule: NightRule) {
+        prefs.nightRules = if (nightRules.any { it.id == rule.id }) nightRules.map { if (it.id == rule.id) rule else it } else nightRules + rule
+        nightRules = prefs.nightRules
+    }
+
+    fun deleteRule(id: Int) {
+        prefs.nightRules = nightRules.filter { it.id != id }
+        nightRules = prefs.nightRules
+    }
+
+    private fun scheduleChanged() {
         onScheduleChange()
         reloadSchedule()
     }
 
     /** Одноразовий будильник вимикається сам, коли спрацює, тож стан треба перечитувати. */
     fun reloadSchedule() {
-        scheduleEnabled = prefs.scheduleEnabled
-        scheduleMinutes = prefs.scheduleMinutes
-        scheduleDays = prefs.scheduleDays
-        scheduleNext = AlarmScheduler.describeNext(prefs)
+        alarms = prefs.alarms
+        nightRules = prefs.nightRules
+        nextAlarm = AlarmScheduler.next(prefs)?.first
+    }
+
+    var stableClearMinutes by mutableIntStateOf(prefs.stableClearMinutes)
+        private set
+    var bedtimeCheck by mutableStateOf(prefs.bedtimeCheck)
+        private set
+    var alertStartNotice by mutableStateOf(prefs.alertStartNotice)
+        private set
+    var sunriseMinutes by mutableIntStateOf(prefs.sunriseMinutes)
+        private set
+    var watchVibrate by mutableStateOf(prefs.watchVibrate)
+        private set
+
+    fun updateStableClear(value: Int) {
+        stableClearMinutes = value
+        prefs.stableClearMinutes = value
+    }
+
+    fun updateBedtimeCheck(value: Boolean) {
+        bedtimeCheck = value
+        prefs.bedtimeCheck = value
+    }
+
+    fun updateAlertStartNotice(value: Boolean) {
+        alertStartNotice = value
+        prefs.alertStartNotice = value
+    }
+
+    fun updateSunrise(value: Int) {
+        sunriseMinutes = value
+        prefs.sunriseMinutes = value
+        scheduleChanged()
+    }
+
+    fun updateWatchVibrate(value: Boolean) {
+        watchVibrate = value
+        prefs.watchVibrate = value
     }
 
     fun updateRegion(value: Region) {
@@ -170,23 +237,51 @@ class Actions(
     val openExactAlarmSettings: () -> Unit,
     val update: () -> Unit,
     val checkUpdate: () -> Unit,
+    /** Що варто перевірити перед сном (заряд, «Не турбувати», інтернет). */
+    val bedtimeIssues: () -> List<String>,
 )
 
-private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE }
+private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE, RULES, HISTORY }
 
 @Composable
-fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, actions: Actions) {
+fun VidbiyApp(
+    prefs: Prefs,
+    settings: SettingsState,
+    permissions: Permissions,
+    actions: Actions,
+    bedtimeIssues: List<String>,
+) {
     val state by WatchRepo.state.collectAsStateWithLifecycle()
     var onboarded by remember { mutableStateOf(prefs.onboarded) }
     var screen by remember { mutableStateOf(Screen.HOME) }
     var regionReturn by remember { mutableStateOf(Screen.HOME) }
     var scheduleReturn by remember { mutableStateOf(Screen.HOME) }
+    var rulesReturn by remember { mutableStateOf(Screen.SETTINGS) }
+    var editingAlarm by remember { mutableStateOf<Int?>(null) }
+    var editingRule by remember { mutableStateOf<Int?>(null) }
     var dialog by remember { mutableStateOf<AppDialog?>(null) }
+    var bedtimeWarning by remember { mutableStateOf<List<String>?>(null) }
+    val armChecked = {
+        val issues = if (settings.bedtimeCheck) actions.bedtimeIssues() else emptyList()
+        if (issues.isEmpty()) actions.arm() else bedtimeWarning = issues
+    }
+
+    var tourSeen by remember { mutableStateOf(prefs.tourVersion >= TOUR_VERSION) }
 
     if (!onboarded) {
         Onboarding(settings, permissions, actions) {
             prefs.onboarded = true
+            prefs.tourVersion = TOUR_VERSION
             onboarded = true
+            tourSeen = true
+        }
+        return
+    }
+    // Після оновлення з новими функціями або з налаштувань — лише тур.
+    if (!tourSeen) {
+        Onboarding(settings, permissions, actions, startStep = TOUR_STEP) {
+            prefs.tourVersion = TOUR_VERSION
+            tourSeen = true
         }
         return
     }
@@ -195,7 +290,19 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
         screen = when (screen) {
             Screen.REGION -> regionReturn
             Screen.SOUND -> Screen.SETTINGS
-            Screen.SCHEDULE -> scheduleReturn
+            Screen.SCHEDULE -> if (editingAlarm != null) {
+                editingAlarm = null
+                Screen.SCHEDULE
+            } else {
+                scheduleReturn
+            }
+            Screen.RULES -> if (editingRule != null) {
+                editingRule = null
+                Screen.RULES
+            } else {
+                rulesReturn
+            }
+            Screen.HISTORY -> Screen.SETTINGS
             else -> Screen.HOME
         }
     }
@@ -208,6 +315,13 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
             screen = Screen.SCHEDULE
         } else if (it == AppDialog.SOUND) {
             screen = Screen.SOUND
+        } else if (it == AppDialog.RULES) {
+            rulesReturn = screen
+            screen = Screen.RULES
+        } else if (it == AppDialog.HISTORY) {
+            screen = Screen.HISTORY
+        } else if (it == AppDialog.TOUR) {
+            tourSeen = false
         } else {
             dialog = it
         }
@@ -232,8 +346,21 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
                     settings = settings,
                     permissions = permissions,
                     actions = actions,
+                    editingId = editingAlarm,
+                    onEdit = { editingAlarm = it },
+                    onOpenRules = {
+                        rulesReturn = Screen.SCHEDULE
+                        screen = Screen.RULES
+                    },
                     onBack = { screen = scheduleReturn },
                 )
+                Screen.RULES -> NightRulesScreen(
+                    settings = settings,
+                    editingId = editingRule,
+                    onEdit = { editingRule = it },
+                    onBack = { screen = rulesReturn },
+                )
+                Screen.HISTORY -> HistoryScreen(onBack = { screen = Screen.SETTINGS })
                 Screen.SOUND -> SoundScreen(
                     settings = settings,
                     actions = actions,
@@ -248,6 +375,8 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
                     settings = settings,
                     permissions = permissions,
                     actions = actions,
+                    onArm = armChecked,
+                    bedtimeIssues = bedtimeIssues.takeIf { settings.bedtimeCheck && settings.anyAlarmEnabled }.orEmpty(),
                     onOpenSettings = { screen = Screen.SETTINGS },
                     onDialog = openDialog,
                 )
@@ -282,9 +411,54 @@ fun VidbiyApp(prefs: Prefs, settings: SettingsState, permissions: Permissions, a
             onDismiss = { dialog = null },
         )
 
-        AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, null -> Unit
+        AppDialog.STABLE -> ChoiceDialog(
+            title = "Чекати, щоб відбій утримався",
+            options = listOf(0, 5, 10, 15, 20, 30).map { it to stableLabel(it) },
+            selected = settings.stableClearMinutes,
+            onSelect = {
+                settings.updateStableClear(it)
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+
+        AppDialog.SUNRISE -> ChoiceDialog(
+            title = "Світанок перед будильником",
+            options = listOf(0, 5, 10, 15, 20).map { it to sunriseLabel(it) },
+            selected = settings.sunriseMinutes,
+            onSelect = {
+                settings.updateSunrise(it)
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+
+        AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, AppDialog.RULES, AppDialog.HISTORY, AppDialog.TOUR, null -> Unit
+    }
+
+    bedtimeWarning?.let { issues ->
+        AlertDialog(
+            onDismissRequest = { bedtimeWarning = null },
+            title = { Text("Перед сном варто перевірити") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    issues.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    bedtimeWarning = null
+                    actions.arm()
+                }) { Text("Увімкнути все одно") }
+            },
+            dismissButton = { TextButton(onClick = { bedtimeWarning = null }) { Text("Скасувати") } },
+        )
     }
 }
+
+fun stableLabel(minutes: Int) = if (minutes == 0) "Ні, будити одразу" else "$minutes хв"
+
+fun sunriseLabel(minutes: Int) = if (minutes == 0) "Вимкнено" else "За $minutes хв"
 
 @Composable
 private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
@@ -312,7 +486,7 @@ private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
     }
 }
 
-enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND, SCHEDULE }
+enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND, SCHEDULE, STABLE, SUNRISE, RULES, HISTORY, TOUR }
 
 @Composable
 private fun HomeScreen(
@@ -320,6 +494,8 @@ private fun HomeScreen(
     settings: SettingsState,
     permissions: Permissions,
     actions: Actions,
+    onArm: () -> Unit,
+    bedtimeIssues: List<String>,
     onOpenSettings: () -> Unit,
     onDialog: (AppDialog) -> Unit,
 ) {
@@ -344,8 +520,8 @@ private fun HomeScreen(
 
             val (onOrb, hint) = when {
                 idle && !permissions.notifications -> actions.requestNotifications to "Торкніться, щоб дозволити сповіщення"
-                idle && settings.scheduleEnabled -> actions.arm to "Торкніться, щоб чекати відбою зараз"
-                idle -> actions.arm to "Торкніться, щоб увімкнути"
+                idle && settings.anyAlarmEnabled -> onArm to "Торкніться, щоб чекати відбою зараз"
+                idle -> onArm to "Торкніться, щоб увімкнути"
                 state.phase == Phase.RINGING || state.phase == Phase.SNOOZED -> actions.stop to "Торкніться, щоб вимкнути"
                 else -> actions.stop to "Торкніться, щоб скасувати"
             }
@@ -353,13 +529,13 @@ private fun HomeScreen(
                 state,
                 onOrb,
                 hint,
-                settings.scheduleNext.takeIf { settings.scheduleEnabled }
-                    ?.let { AlarmScheduler.formatMinutes(settings.scheduleMinutes) to it },
+                settings.nextAlarm?.let { AlarmScheduler.formatTime(it) to AlarmScheduler.describeAt(it) },
                 modifier = Modifier.padding(vertical = 24.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PermissionBanner(permissions, actions)
                 if (idle) UpdateBanner(actions)
+                if (idle && bedtimeIssues.isNotEmpty()) BedtimeCard(bedtimeIssues)
                 ScheduleCard(settings, onOpen = { onDialog(AppDialog.SCHEDULE) })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     InfoTile(
@@ -437,6 +613,7 @@ private fun Hero(
         Phase.IDLE -> schedule?.let { "Будильник о ${it.first}" } ?: "Будильник вимкнено"
         Phase.WAITING_ALERT -> "Очікування тривоги"
         Phase.ALERT -> "Триває тривога"
+        Phase.CLEARING -> "Відбій"
         Phase.RINGING -> "Відбій!"
         Phase.SNOOZED -> "Відкладено"
     }
@@ -589,6 +766,22 @@ private fun UpdateBanner(actions: Actions) {
                 color = Night.Blue,
                 modifier = Modifier.fillMaxWidth().padding(start = 46.dp, end = 16.dp, bottom = 14.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun BedtimeCard(issues: List<String>) {
+    GlassCard(color = Night.Amber.copy(alpha = 0.10f), border = Night.Amber.copy(alpha = 0.35f)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = Night.Amber, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Перед сном варто перевірити", style = MaterialTheme.typography.titleSmall)
+            }
+            issues.forEach {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = Night.TextDim, modifier = Modifier.padding(start = 30.dp))
+            }
         }
     }
 }

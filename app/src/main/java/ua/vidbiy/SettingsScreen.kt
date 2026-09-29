@@ -20,6 +20,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.WbTwilight
+import androidx.compose.material.icons.rounded.Watch
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Code
@@ -108,11 +116,13 @@ fun SettingsScreen(
         GlassCard {
             SettingsRow(
                 icon = Icons.Rounded.Alarm,
-                title = "Будильник на час",
-                value = if (settings.scheduleEnabled) {
-                    "${AlarmScheduler.formatMinutes(settings.scheduleMinutes)} · ${AlarmScheduler.describeDays(settings.scheduleDays)}"
-                } else {
-                    "Вимкнено"
+                title = "Будильники на час",
+                value = settings.alarms.filter { it.enabled }.sortedBy { it.minutes }.let { on ->
+                    when (on.size) {
+                        0 -> "Вимкнено"
+                        1 -> "${AlarmScheduler.formatMinutes(on[0].minutes)} · ${AlarmScheduler.describeDays(on[0].days)}"
+                        else -> on.joinToString(", ") { AlarmScheduler.formatMinutes(it.minutes) }
+                    }
                 },
                 onClick = { onDialog(AppDialog.SCHEDULE) },
             )
@@ -131,6 +141,18 @@ fun SettingsScreen(
                 value = if (settings.cutoff >= 0) Prefs.formatMinutes(settings.cutoff) else "Без обмеження",
                 enabled = idle,
                 onClick = { onDialog(AppDialog.CUTOFF) },
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.HourglassTop,
+                title = "Чекати, щоб відбій утримався",
+                value = if (settings.stableClearMinutes == 0) {
+                    "Ні, будити одразу після відбою"
+                } else {
+                    "${settings.stableClearMinutes} хв: якщо тривога повториться, будильник чекатиме далі"
+                },
+                enabled = idle,
+                onClick = { onDialog(AppDialog.STABLE) },
             )
             RowDivider()
             SettingsRow(
@@ -155,6 +177,53 @@ fun SettingsScreen(
                         colors = SwitchDefaults.colors(checkedTrackColor = Night.Amber, checkedThumbColor = Night.OnAmber),
                     )
                 },
+            )
+        }
+
+        SectionHeader("Пробудження")
+        GlassCard {
+            SettingsRow(
+                icon = Icons.Rounded.DarkMode,
+                title = "Правила нічної тривоги",
+                value = settings.nightRules.count { it.enabled }.let {
+                    if (it == 0) "Будити пізніше, якщо вночі була тривога" else "Увімкнено ${rulesCount(it)}"
+                },
+                onClick = { onDialog(AppDialog.RULES) },
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.WbTwilight,
+                title = "Світанок перед будильником",
+                value = if (settings.sunriseMinutes == 0) {
+                    "Вимкнено"
+                } else {
+                    "За ${settings.sunriseMinutes} хв до будильника на час екран поволі світлішає"
+                },
+                onClick = { onDialog(AppDialog.SUNRISE) },
+            )
+            RowDivider()
+            SwitchRow(
+                icon = Icons.Rounded.Vibration,
+                title = "Повідомляти про початок тривоги",
+                value = "Тихо, лише вібрацією, поки будильник чекає відбою",
+                checked = settings.alertStartNotice,
+                onChange = settings::updateAlertStartNotice,
+            )
+            RowDivider()
+            SwitchRow(
+                icon = Icons.Rounded.Watch,
+                title = "Вібрація на годиннику",
+                value = "Сигнал будильника на годиннику, підключеному до телефона",
+                checked = settings.watchVibrate,
+                onChange = settings::updateWatchVibrate,
+            )
+            RowDivider()
+            SwitchRow(
+                icon = Icons.Rounded.BatteryAlert,
+                title = "Перевірка перед сном",
+                value = "Попередить про низький заряд, «Не турбувати» чи відсутність інтернету",
+                checked = settings.bedtimeCheck,
+                onChange = settings::updateBedtimeCheck,
             )
         }
 
@@ -231,6 +300,20 @@ fun SettingsScreen(
                 onClick = if (update is UpdateState.Available) actions.update else actions.checkUpdate,
             )
             RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.School,
+                title = "Знайомство з програмою",
+                value = "Короткий огляд можливостей",
+                onClick = { onDialog(AppDialog.TOUR) },
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.History,
+                title = "Історія",
+                value = "Коли були тривога й відбій і чому дзвонив будильник",
+                onClick = { onDialog(AppDialog.HISTORY) },
+            )
+            RowDivider()
             val uriHandler = LocalUriHandler.current
             SettingsRow(
                 icon = Icons.Rounded.Code,
@@ -241,6 +324,29 @@ fun SettingsScreen(
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun SwitchRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    SettingsRow(
+        icon = icon,
+        title = title,
+        value = value,
+        onClick = { onChange(!checked) },
+        trailing = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors = SwitchDefaults.colors(checkedTrackColor = Night.Amber, checkedThumbColor = Night.OnAmber),
+            )
+        },
+    )
 }
 
 @Composable

@@ -53,19 +53,76 @@ class Prefs(context: Context) {
         get() = sp.getString("custom_sound_name", null)
         set(value) = sp.edit().putString("custom_sound_name", value).apply()
 
-    // Будильник за розкладом: о заданій порі будить, а під час тривоги чекає відбою.
-    var scheduleEnabled: Boolean
-        get() = sp.getBoolean("schedule_enabled", false)
-        set(value) = sp.edit().putBoolean("schedule_enabled", value).apply()
+    /** Будильники на час. Раніше був один — його переносимо в список. */
+    var alarms: List<Alarm>
+        get() = AlarmsJson.alarms(sp.getString("alarms", null)) ?: listOf(
+            Alarm(
+                id = 1,
+                enabled = sp.getBoolean("schedule_enabled", false),
+                minutes = sp.getInt("schedule_minutes", 7 * 60 + 30),
+                days = sp.getInt("schedule_days", AlarmScheduler.WEEKDAYS),
+            )
+        )
+        set(value) { sp.edit().putString("alarms", AlarmsJson.write(value)).commit() }
 
-    var scheduleMinutes: Int
-        get() = sp.getInt("schedule_minutes", 7 * 60 + 30)
-        set(value) = sp.edit().putInt("schedule_minutes", value).apply()
+    var nightRules: List<NightRule>
+        get() = AlarmsJson.rules(sp.getString("night_rules", null)) ?: emptyList()
+        set(value) = sp.edit().putString("night_rules", AlarmsJson.writeRules(value)).apply()
 
-    /** Дні тижня бітами: біт 0 — понеділок … біт 6 — неділя; 0 — один раз. */
-    var scheduleDays: Int
-        get() = sp.getInt("schedule_days", 0b0011111)
-        set(value) = sp.edit().putInt("schedule_days", value).apply()
+    /** Скільки хвилин відбій має втриматися, перш ніж будити; 0 — будити одразу. */
+    var stableClearMinutes: Int
+        get() = sp.getInt("stable_clear", 0)
+        set(value) = sp.edit().putInt("stable_clear", value).apply()
+
+    var bedtimeCheck: Boolean
+        get() = sp.getBoolean("bedtime_check", true)
+        set(value) = sp.edit().putBoolean("bedtime_check", value).apply()
+
+    var alertStartNotice: Boolean
+        get() = sp.getBoolean("alert_start_notice", false)
+        set(value) = sp.edit().putBoolean("alert_start_notice", value).apply()
+
+    /** За скільки хвилин до будильника на час починається світанок; 0 — вимкнено. */
+    var sunriseMinutes: Int
+        get() = sp.getInt("sunrise", 0)
+        set(value) = sp.edit().putInt("sunrise", value).apply()
+
+    var watchVibrate: Boolean
+        get() = sp.getBoolean("watch_vibrate", false)
+        set(value) = sp.edit().putBoolean("watch_vibrate", value).apply()
+
+    // Що саме поставлено в системний будильник: час і які будильники (або перенесений правилом).
+    var pendingAt: Long
+        get() = sp.getLong("pending_at", 0L)
+        set(value) { sp.edit().putLong("pending_at", value).commit() }
+
+    var pendingIds: List<Int>
+        get() = sp.getString("pending_ids", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }
+        set(value) { sp.edit().putString("pending_ids", value.joinToString(",")).commit() }
+
+    var pendingShifted: Boolean
+        get() = sp.getBoolean("pending_shifted", false)
+        set(value) { sp.edit().putBoolean("pending_shifted", value).commit() }
+
+    /** Будильник, перенесений правилом нічної тривоги: коли, який і о котрій мав бути спершу. */
+    var shiftAt: Long
+        get() = sp.getLong("shift_at", 0L)
+        set(value) { sp.edit().putLong("shift_at", value).commit() }
+
+    var shiftAlarmId: Int
+        get() = sp.getInt("shift_alarm", 0)
+        set(value) { sp.edit().putInt("shift_alarm", value).commit() }
+
+    /** Місце, за яким стежить поточне очікування, якщо воно не основне (будильник на час з іншим місцем). */
+    var runPlace: Region?
+        get() = sp.getString("run_place", null)?.let {
+            try {
+                AlarmsJson.region(org.json.JSONObject(it))
+            } catch (_: org.json.JSONException) {
+                null
+            }
+        }
+        set(value) { sp.edit().putString("run_place", value?.let { AlarmsJson.region(it).toString() }).commit() }
 
     /** Поточне очікування запущене будильником за розкладом (а не дотиком до місяця). */
     var scheduleRun: Boolean
@@ -75,6 +132,11 @@ class Prefs(context: Context) {
     var scheduleLabel: String
         get() = sp.getString("schedule_label", "") ?: ""
         set(value) { sp.edit().putString("schedule_label", value).commit() }
+
+    /** Яку версію туру вже бачили; менша за [TOUR_VERSION] — показати тур ще раз. */
+    var tourVersion: Int
+        get() = sp.getInt("tour_version", if (onboarded) 1 else 0)
+        set(value) = sp.edit().putInt("tour_version", value).apply()
 
     var onboarded: Boolean
         get() = sp.getBoolean("onboarded", false)

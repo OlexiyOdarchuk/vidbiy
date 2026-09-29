@@ -31,6 +31,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BatteryAlert
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.WbTwilight
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -52,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -59,12 +65,22 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 private const val STEPS = 4
+const val TOUR_STEP = 3
 
-/** Перший запуск: привітання → дозволи → регіон → короткий тур. */
+/** Версія туру: коли додаються помітні функції, тур показується ще раз після оновлення. */
+const val TOUR_VERSION = 2
+
+/** Перший запуск: привітання → дозволи → регіон → короткий тур. З [startStep] = [TOUR_STEP] — лише тур. */
 @Composable
-fun Onboarding(settings: SettingsState, permissions: Permissions, actions: Actions, onDone: () -> Unit) {
-    var step by rememberSaveable { mutableIntStateOf(0) }
-    BackHandler(enabled = step > 0) { step-- }
+fun Onboarding(
+    settings: SettingsState,
+    permissions: Permissions,
+    actions: Actions,
+    startStep: Int = 0,
+    onDone: () -> Unit,
+) {
+    var step by rememberSaveable { mutableIntStateOf(startStep) }
+    BackHandler(enabled = step > startStep) { step-- }
 
     NightBackground {
         Column(
@@ -73,7 +89,7 @@ fun Onboarding(settings: SettingsState, permissions: Permissions, actions: Actio
                 .safeDrawingPadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            StepIndicator(step)
+            if (startStep == 0) StepIndicator(step)
             AnimatedContent(
                 targetState = step,
                 transitionSpec = {
@@ -263,17 +279,45 @@ private fun TourStep(onDone: () -> Unit) {
         },
         TourPage(
             "Або звичайний будильник",
-            "Поставте час, наприклад 07:30. Якщо тоді тривоги немає, він задзвонить як звичайний, а якщо триває — розбудить після відбою.",
+            "Поставте час, наприклад 07:30, — можна кілька, на різні дні й навіть для іншого міста. " +
+                "Якщо тоді тривоги немає, будильник задзвонить як звичайний, а якщо триває — розбудить після відбою.",
         ) {
-            DemoTile(Icons.Rounded.Alarm, "Будильник на час", "07:30 · Будні", Modifier.widthIn(min = 200.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
+                DemoTile(Icons.Rounded.Alarm, "Будні", "07:30", Modifier.fillMaxWidth())
+                DemoTile(Icons.Rounded.Alarm, "Вихідні", "10:00", Modifier.fillMaxWidth())
+            }
+        },
+        TourPage(
+            "Після тривожної ночі — пізніше",
+            "Правила нічної тривоги переносять будильник, якщо вночі була тривога: наприклад, коли після нічної тривоги " +
+                "навчання починається пізніше. Умови й час налаштовуються, а вмикаються окремо для кожного будильника.",
+        ) {
+            DemoTile(Icons.Rounded.DarkMode, "Тривога з 00:00 до 06:00", "Будити о 09:00", Modifier.widthIn(min = 240.dp))
         },
         TourPage(
             "Налаштуйте під себе",
-            "«Не будити після»: якщо відбій настане, коли пари вже закінчились, будильник не задзвонить. Регіон і джерела даних змінюються в налаштуваннях.",
+            "«Не будити після»: якщо відбій настане, коли пари вже закінчились, будильник не задзвонить. " +
+                "Можна чекати, щоб відбій утримався, увімкнути світанок перед будильником і переглянути історію ночей.",
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
-                DemoTile(Icons.Rounded.Schedule, "Не будити після", "14:30", Modifier.weight(1f))
-                DemoTile(Icons.Rounded.WifiOff, "Якщо зник зв'язок", "Будити", Modifier.weight(1f))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DemoTile(Icons.Rounded.Schedule, "Не будити після", "14:30", Modifier.weight(1f))
+                    DemoTile(Icons.Rounded.WifiOff, "Якщо зник зв'язок", "Будити", Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DemoTile(Icons.Rounded.HourglassTop, "Відбій утримався", "10 хв", Modifier.weight(1f))
+                    DemoTile(Icons.Rounded.WbTwilight, "Світанок", "За 10 хв", Modifier.weight(1f))
+                }
+            }
+        },
+        TourPage(
+            "Під рукою",
+            "Додайте плитку «Відбій» у швидкі налаштування або віджет на головний екран, щоб вмикати очікування одним дотиком. " +
+                "Перед сном програма нагадає, якщо заряд низький чи немає інтернету.",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
+                DemoTile(Icons.Rounded.Widgets, "Віджет і плитка", "Чекаю на тривогу", Modifier.fillMaxWidth())
+                DemoTile(Icons.Rounded.BatteryAlert, "Перед сном", "Заряд 12 %", Modifier.fillMaxWidth())
             }
         },
     )
@@ -322,6 +366,15 @@ private fun TourStep(onDone: () -> Unit) {
         }
         PrimaryButton(if (last) "Почати користуватися" else "Далі") {
             if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }
+        }
+        TextButton(
+            onClick = onDone,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .alpha(if (last) 0f else 1f),
+            enabled = !last,
+        ) {
+            Text("Пропустити", color = Night.TextDim)
         }
     }
 }

@@ -31,6 +31,7 @@ data class Permissions(
 
 class MainActivity : ComponentActivity() {
     private var permissions by mutableStateOf(Permissions())
+    private var bedtimeIssues by mutableStateOf(emptyList<String>())
 
     private val notificationRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissions = readPermissions() }
@@ -87,11 +88,13 @@ class MainActivity : ComponentActivity() {
             openExactAlarmSettings = ::openExactAlarmSettings,
             update = ::update,
             checkUpdate = { Updater.check(this, force = true) },
+            bedtimeIssues = { BedtimeCheck.issues(this) },
         )
+        handleArm(intent)
 
         setContent {
             VidbiyTheme {
-                VidbiyApp(prefs, settings, permissions, actions)
+                VidbiyApp(prefs, settings, permissions, actions, bedtimeIssues)
             }
         }
     }
@@ -100,7 +103,24 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (::settings.isInitialized) settings.reloadSchedule()
         permissions = readPermissions()
+        bedtimeIssues = BedtimeCheck.issues(this)
         Updater.check(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleArm(intent)
+    }
+
+    /** Плитка чи віджет не змогли ввімкнути очікування з фону й відкрили програму. */
+    private fun handleArm(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_ARM, false) != true) return
+        intent.removeExtra(EXTRA_ARM)
+        if (WatchRepo.state.value.phase == Phase.IDLE) WatchService.arm(this)
+    }
+
+    companion object {
+        const val EXTRA_ARM = "arm"
     }
 
     /** Кнопка «Оновити»: без дозволу на встановлення спершу ведемо в системні налаштування. */
