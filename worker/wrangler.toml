@@ -7,12 +7,12 @@ workers_dev = true
 [triggers]
 crons = ["* * * * *"]
 
-# Очікування для push-сповіщень. Створити: wrangler d1 create vidbiy, потім
+# Очікування для push-сповіщень. Таблиці створюються так:
 # wrangler d1 execute vidbiy --remote --file schema.sql
 [[d1_databases]]
 binding = "DB"
 database_name = "vidbiy"
-database_id = "TODO" # підставити id з виводу wrangler d1 create
+database_id = "8878ca2b-5953-4334-b824-d760744b31e7"
 
 # Відкритий ключ VAPID; закритий — секрет: wrangler secret put VAPID_PRIVATE_KEY (JWK у JSON).
 [vars]
