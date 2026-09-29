@@ -83,24 +83,30 @@ class WatchTile : TileService() {
 
     override fun onClick() {
         if (Surfaces.status(this).active) {
-            WatchService.send(this, WatchService.ACTION_STOP)
+            if (WatchRepo.state.value.phase == Phase.RINGING && Prefs(this).dismissTask != DismissTask.NONE) {
+                open(Intent(this, AlarmActivity::class.java))
+            } else {
+                WatchService.send(this, WatchService.ACTION_STOP)
+            }
             return
         }
         try {
             WatchService.arm(this)
         } catch (_: IllegalStateException) {
             // Система не дала запустити сервіс із фону — вмикаємо через програму.
-            val intent = Intent(this, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_ARM, true)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (Build.VERSION.SDK_INT >= 34) {
-                startActivityAndCollapse(
-                    PendingIntent.getActivity(this, 4, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-                )
-            } else {
-                @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
-                startActivityAndCollapse(intent)
-            }
+            open(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_ARM, true))
+        }
+    }
+
+    private fun open(target: Intent) {
+        val intent = target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (Build.VERSION.SDK_INT >= 34) {
+            startActivityAndCollapse(
+                PendingIntent.getActivity(this, 4, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            )
+        } else {
+            @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")
+            startActivityAndCollapse(intent)
         }
     }
 }

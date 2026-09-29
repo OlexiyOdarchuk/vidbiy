@@ -87,6 +87,35 @@ class Prefs(context: Context) {
         get() = sp.getInt("sunrise", 0)
         set(value) = sp.edit().putInt("sunrise", value).apply()
 
+    var dismissTask: DismissTask
+        get() = DismissTask.entries.firstOrNull { it.name == sp.getString("dismiss_task", null) } ?: DismissTask.NONE
+        set(value) = sp.edit().putString("dismiss_task", value.name).apply()
+
+    var mathLevel: MathLevel
+        get() = MathLevel.entries.firstOrNull { it.name == sp.getString("math_level", null) } ?: MathLevel.EASY
+        set(value) = sp.edit().putString("math_level", value.name).apply()
+
+    var mathCount: Int
+        get() = sp.getInt("math_count", 1)
+        set(value) = sp.edit().putInt("math_count", value).apply()
+
+    var shakeCount: Int
+        get() = sp.getInt("shake_count", 20)
+        set(value) = sp.edit().putInt("shake_count", value).apply()
+
+    var voice: Boolean
+        get() = sp.getBoolean("voice", false)
+        set(value) = sp.edit().putBoolean("voice", value).apply()
+
+    var webhooks: List<Webhook>
+        get() = Webhooks.parse(sp.getString("webhooks", null))
+        set(value) = sp.edit().putString("webhooks", Webhooks.write(value)).apply()
+
+    /** Останній результат надсилання кожного вебхука: id → текст. */
+    fun webhookResult(id: Int): String? = sp.getString("webhook_result_$id", null)
+
+    fun setWebhookResult(id: Int, text: String) = sp.edit().putString("webhook_result_$id", text).apply()
+
     var watchVibrate: Boolean
         get() = sp.getBoolean("watch_vibrate", false)
         set(value) = sp.edit().putBoolean("watch_vibrate", value).apply()

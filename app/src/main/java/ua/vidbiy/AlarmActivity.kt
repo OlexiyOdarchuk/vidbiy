@@ -1,6 +1,28 @@
 package ua.vidbiy
 
 import android.graphics.Color
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import kotlin.math.sqrt
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -55,23 +77,39 @@ class AlarmActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        val prefs = Prefs(this)
         setContent {
             VidbiyTheme {
                 val state by WatchRepo.state.collectAsStateWithLifecycle()
                 LaunchedEffect(state.phase) {
                     if (state.phase != Phase.RINGING) finish()
                 }
-                AlarmScreen(
-                    reason = state.reason,
-                    onDismiss = {
-                        WatchService.send(this, WatchService.ACTION_STOP)
-                        finish()
-                    },
-                    onSnooze = {
-                        WatchService.send(this, WatchService.ACTION_SNOOZE)
-                        finish()
-                    },
-                )
+                var task by remember { mutableStateOf<DismissTask?>(null) }
+                val dismiss = {
+                    WatchService.send(this, WatchService.ACTION_STOP)
+                    finish()
+                }
+                BackHandler(enabled = task != null) { task = null }
+                when (task) {
+                    DismissTask.MATH -> MathTaskScreen(prefs.mathLevel, prefs.mathCount, onSolved = dismiss, onBack = { task = null })
+                    DismissTask.SHAKE -> ShakeTaskScreen(
+                        prefs.shakeCount,
+                        onSolved = dismiss,
+                        onNoSensor = { task = DismissTask.MATH },
+                        onBack = { task = null },
+                    )
+                    else -> AlarmScreen(
+                        reason = state.reason,
+                        onDismiss = {
+                            val needed = prefs.dismissTask
+                            if (needed == DismissTask.NONE) dismiss() else task = needed
+                        },
+                        onSnooze = {
+                            WatchService.send(this, WatchService.ACTION_SNOOZE)
+                            finish()
+                        },
+                    )
+                }
             }
         }
     }
@@ -133,3 +171,124 @@ private fun AlarmScreen(reason: String, onDismiss: () -> Unit, onSnooze: () -> U
         }
     }
 }
+
+@Composable
+private fun TaskScaffold(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    NightBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
+                content = content,
+            )
+            TextButton(onClick = onBack) { Text("Назад", color = Night.TextDim) }
+        }
+    }
+}
+
+@Composable
+private fun MathTaskScreen(level: MathLevel, count: Int, onSolved: () -> Unit, onBack: () -> Unit) {
+    var solved by remember { mutableIntStateOf(0) }
+    var problem by remember { mutableStateOf(MathTasks.generate(level)) }
+    var answer by remember { mutableStateOf("") }
+    var wrong by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+
+    val check = {
+        if (answer.trim().toIntOrNull() == problem.answer) {
+            solved++
+            wrong = false
+            if (solved >= count) onSolved() else problem = MathTasks.generate(level)
+        } else {
+            wrong = true
+            problem = MathTasks.generate(level)
+        }
+        answer = ""
+    }
+
+    TaskScaffold(if (count > 1) "Приклад ${solved + 1} з $count" else "Розв'яжіть приклад", onBack) {
+        Text("${problem.text} =", style = MaterialTheme.typography.displayMedium)
+        Spacer(Modifier.height(24.dp))
+        OutlinedTextField(
+            value = answer,
+            onValueChange = { v -> answer = v.filter { it.isDigit() }.take(5) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { check() }),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .width(200.dp)
+                .focusRequester(focus),
+        )
+        Text(
+            if (wrong) "Неправильно, ось інший приклад" else " ",
+            color = Night.Red,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = check,
+            enabled = answer.isNotEmpty(),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Night.Amber, contentColor = Night.OnAmber),
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+        ) {
+            Text("Перевірити", style = MaterialTheme.typography.titleLarge)
+        }
+    }
+}
+
+@Composable
+private fun ShakeTaskScreen(target: Int, onSolved: () -> Unit, onNoSensor: () -> Unit, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var shakes by remember { mutableIntStateOf(0) }
+    DisposableEffect(Unit) {
+        val sm = context.getSystemService(SensorManager::class.java)
+        val sensor = sm?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (sensor == null) {
+            onNoSensor()
+            return@DisposableEffect onDispose { }
+        }
+        var last = 0L
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(e: SensorEvent) {
+                val g = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) / SensorManager.GRAVITY_EARTH
+                val now = System.currentTimeMillis()
+                // Поріг і пауза між струсами, щоб легкий рух чи вібрація самого телефона не рахувались.
+                if (g > SHAKE_G && now - last > SHAKE_GAP_MS) {
+                    last = now
+                    shakes++
+                    if (shakes >= target) onSolved()
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
+        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        onDispose { sm.unregisterListener(listener) }
+    }
+
+    TaskScaffold("Струсніть телефон", onBack) {
+        Text("${shakes.coerceAtMost(target)} / $target", style = MaterialTheme.typography.displayLarge)
+        Spacer(Modifier.height(24.dp))
+        LinearProgressIndicator(
+            progress = { shakes.toFloat() / target },
+            color = Night.Amber,
+            modifier = Modifier.fillMaxWidth().height(8.dp),
+        )
+    }
+}
+
+private const val SHAKE_G = 2.2f
+private const val SHAKE_GAP_MS = 250L

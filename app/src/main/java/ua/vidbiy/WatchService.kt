@@ -30,6 +30,9 @@ class WatchService : Service() {
     private lateinit var prefs: Prefs
     private lateinit var player: AlarmPlayer
     private lateinit var nm: NotificationManager
+    private var announcer: Announcer? = null
+    /** Перевірка звуку з налаштувань: не пишеться в історію й не надсилає вебхуків. */
+    private var testing = false
 
     override fun onCreate() {
         super.onCreate()
@@ -65,17 +68,22 @@ class WatchService : Service() {
 
             ACTION_TOGGLE -> {
                 goForeground("Перевірка стану тривоги…")
-                if (WatchRepo.state.value.phase == Phase.IDLE && job?.isActive != true) {
-                    prepareArm(this)
-                    startWatching()
-                } else {
-                    finish(null)
+                when {
+                    WatchRepo.state.value.phase == Phase.IDLE && job?.isActive != true -> {
+                        prepareArm(this)
+                        startWatching()
+                    }
+                    // Сигнал із завданням не вимикається з віджета — відкриваємо екран сигналу.
+                    WatchRepo.state.value.phase == Phase.RINGING && prefs.dismissTask != DismissTask.NONE ->
+                        startActivity(Intent(this, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    else -> finish(null)
                 }
             }
 
             ACTION_TEST -> {
                 goForeground("Перевірка звуку")
                 job?.cancel()
+                testing = true
                 ring("Перевірка будильника", log = false)
             }
 
@@ -94,6 +102,7 @@ class WatchService : Service() {
     override fun onDestroy() {
         job?.cancel()
         scope.cancel()
+        announcer?.release()
         player.stop()
         releaseWakeLock()
         super.onDestroy()
@@ -124,8 +133,9 @@ class WatchService : Service() {
                     RuleOutcome.None -> null
                 }
                 if (message != null) {
-                    if (WatchRepo.state.value.phase == Phase.IDLE) History.note(this@WatchService, message)
-                    else History.add(this@WatchService, message)
+                    val type = if (outcome is RuleOutcome.Skip) "skip" else "shift"
+                    if (WatchRepo.state.value.phase == Phase.IDLE) History.note(this@WatchService, message, type)
+                    else History.add(this@WatchService, message, type)
                     nm.notify(Notifications.ID_INFO, Notifications.info(this@WatchService, message))
                     scheduleJob = null
                     stopIfIdle()
@@ -145,9 +155,10 @@ class WatchService : Service() {
         if (phase == Phase.IDLE || current != place) prefs.sawAlert = false
         if (phase == Phase.IDLE) {
             prefs.cutoffAt = prefs.cutoffMinutes.let { if (it >= 0) Prefs.nextOccurrence(it) else 0L }
-            History.begin(this, "Будильник о $label: перевірка тривоги")
+            History.begin(this, "Будильник о $label: перевірка тривоги", "scheduled")
+            Webhooks.fire(this, HookEvent.ARMED, place.name, "Будильник о $label")
         } else {
-            History.add(this, "Будильник о $label: перевірка тривоги")
+            History.add(this, "Будильник о $label: перевірка тривоги", "scheduled")
         }
         prefs.armed = true
         prefs.scheduleRun = true
@@ -206,13 +217,17 @@ class WatchService : Service() {
                         if (result.status != AlertStatus.NONE) {
                             val partial = result.status == AlertStatus.PARTIAL
                             when {
-                                lastStatus == null ->
-                                    History.add(this@WatchService, if (partial) "Тривога в частині регіону" else "Триває тривога")
+                                lastStatus == null -> {
+                                    History.add(this@WatchService, if (partial) "Тривога в частині регіону" else "Триває тривога", "alert")
+                                    Webhooks.fire(this@WatchService, HookEvent.ALERT, region.name, "Триває тривога")
+                                }
                                 lastStatus == AlertStatus.NONE -> {
                                     History.add(
                                         this@WatchService,
                                         if (clearSince > 0) "Тривога повторилася" else if (partial) "Тривога в частині регіону" else "Почалася тривога",
+                                        "alert",
                                     )
+                                    Webhooks.fire(this@WatchService, HookEvent.ALERT, region.name, "Почалася тривога")
                                     if (prefs.alertStartNotice) {
                                         nm.notify(Notifications.ID_ALERT_START, Notifications.alertStart(this@WatchService, region.name))
                                     }
@@ -235,7 +250,8 @@ class WatchService : Service() {
                             val now = System.currentTimeMillis()
                             if (clearSince == 0L) {
                                 clearSince = now
-                                History.add(this@WatchService, "Відбій тривоги")
+                                History.add(this@WatchService, "Відбій тривоги", "clear")
+                                Webhooks.fire(this@WatchService, HookEvent.CLEAR, region.name, "Відбій тривоги")
                             }
                             // Тривога часто повторюється за кілька хвилин, тож за бажанням чекаємо, щоб відбій утримався.
                             val stableMs = prefs.stableClearMinutes * 60_000L
@@ -262,7 +278,7 @@ class WatchService : Service() {
 
                     is ApiResult.Error -> {
                         if (!offlineNoted) {
-                            History.add(this@WatchService, "Немає зв'язку з джерелами даних")
+                            History.add(this@WatchService, "Немає зв'язку з джерелами даних", "offline")
                             offlineNoted = true
                         }
                         // Не знаємо, чи є тривога, — краще розбудити, ніж проспати.
@@ -297,13 +313,21 @@ class WatchService : Service() {
 
     private fun ring(reason: String, log: Boolean = true) {
         acquireWakeLock()
-        if (log) History.add(this, "Сигнал: $reason")
+        if (log) {
+            History.add(this, "Сигнал: $reason", "ring")
+            Webhooks.fire(this, HookEvent.RING, (prefs.runPlace ?: prefs.region).name, reason)
+        }
         nm.cancel(Notifications.ID_SUNRISE)
         WatchRepo.set(WatchState(Phase.RINGING, reason, reason))
         val onWatch = prefs.watchVibrate
-        nm.notify(Notifications.ID_ALARM, Notifications.alarm(this, reason, localOnly = onWatch))
-        if (onWatch) nm.notify(Notifications.ID_WEAR, Notifications.wearAlarm(this, reason))
+        val withTask = prefs.dismissTask != DismissTask.NONE
+        nm.notify(Notifications.ID_ALARM, Notifications.alarm(this, reason, localOnly = onWatch, withTask = withTask))
+        if (onWatch) nm.notify(Notifications.ID_WEAR, Notifications.wearAlarm(this, reason, withTask))
         player.start(scope)
+        if (prefs.voice) {
+            val a = announcer ?: Announcer(this) { player.duck(it) }.also { announcer = it }
+            a.start(scope, reason)
+        }
         startActivity(Intent(this, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
@@ -314,11 +338,12 @@ class WatchService : Service() {
             return
         }
         player.stop()
+        announcer?.stop()
         nm.cancel(Notifications.ID_ALARM)
         nm.cancel(Notifications.ID_WEAR)
         val at = System.currentTimeMillis() + SNOOZE_MS
         val text = "Повторний сигнал о ${formatTime(at)}"
-        History.add(this, "Відкладено до ${formatTime(at)}")
+        History.add(this, "Відкладено до ${formatTime(at)}", "snooze")
         WatchRepo.set(WatchState(Phase.SNOOZED, text, state.reason))
         nm.notify(Notifications.ID_WATCH, Notifications.watch(this, text))
         job?.cancel()
@@ -331,15 +356,20 @@ class WatchService : Service() {
     private fun finish(message: String?) {
         job?.cancel()
         job = null
+        val wasActive = !testing && (prefs.armed || WatchRepo.state.value.phase != Phase.IDLE)
+        testing = false
         player.stop()
+        announcer?.stop()
         nm.cancel(Notifications.ID_ALARM)
         nm.cancel(Notifications.ID_WEAR)
         nm.cancel(Notifications.ID_SUNRISE)
         prefs.armed = false
         prefs.sawAlert = false
         prefs.scheduleRun = false
+        val place = (prefs.runPlace ?: prefs.region).name
         prefs.runPlace = null
-        History.end(this, message ?: "Вимкнено")
+        History.end(this, message ?: "Вимкнено", if (message != null) "cutoff" else "stop")
+        if (wasActive) Webhooks.fire(this, HookEvent.STOP, place, message ?: "Вимкнено")
         WatchRepo.set(WatchState(Phase.IDLE, message ?: ""))
         if (message != null) nm.notify(Notifications.ID_INFO, Notifications.info(this, message))
         Surfaces.refresh(this)
@@ -425,7 +455,8 @@ class WatchService : Service() {
             prefs.scheduleRun = false
             prefs.runPlace = null
             prefs.cutoffAt = prefs.cutoffMinutes.let { if (it >= 0) Prefs.nextOccurrence(it) else 0L }
-            History.begin(context, "Очікування відбою увімкнено")
+            History.begin(context, "Очікування відбою увімкнено", "armed")
+            Webhooks.fire(context, HookEvent.ARMED, prefs.region.name, "Очікування відбою")
             WatchRepo.set(WatchState(Phase.WAITING_ALERT, "Перевірка стану тривоги…"))
         }
 

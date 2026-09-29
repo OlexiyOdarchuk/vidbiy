@@ -31,6 +31,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.Webhook
 import androidx.compose.material.icons.rounded.BatteryAlert
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.WbTwilight
@@ -307,6 +311,22 @@ private fun TourStep(onDone: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     DemoTile(Icons.Rounded.HourglassTop, "Відбій утримався", "10 хв", Modifier.weight(1f))
                     DemoTile(Icons.Rounded.WbTwilight, "Світанок", "За 10 хв", Modifier.weight(1f))
+                }
+            }
+        },
+        TourPage(
+            "Ще кілька можливостей",
+            "Щоб не вимкнути будильник крізь сон, можна розв'язати приклад або струснути телефон. " +
+                "Голос скаже, чому дзвонить будильник, вебхуки увімкнуть світло через розумний дім, а статистика покаже, як минали ночі.",
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DemoTile(Icons.Rounded.Webhook, "Розумний дім", "Світло о відбої", Modifier.weight(1f))
+                    DemoTile(Icons.Rounded.Calculate, "Вимкнення", "36 × 7 = ?", Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DemoTile(Icons.Rounded.RecordVoiceOver, "Голос", "«Відбій тривоги»", Modifier.weight(1f))
+                    DemoTile(Icons.Rounded.BarChart, "Статистика", "Ночі й тривоги", Modifier.weight(1f))
                 }
             }
         },

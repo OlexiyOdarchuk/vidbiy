@@ -8,7 +8,8 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
 
-data class HistoryEvent(val at: Long, val text: String)
+/** [type] — для статистики: armed, scheduled, alert, clear, ring, snooze, stop, cutoff, shift, skip, offline. */
+data class HistoryEvent(val at: Long, val text: String, val type: String? = null)
 
 /** Сеанс — від увімкнення очікування чи спрацювання будильника на час до вимкнення. */
 data class HistorySession(val startedAt: Long, val endedAt: Long?, val events: List<HistoryEvent>)
@@ -23,39 +24,39 @@ object History {
 
     /** Новий сеанс; якщо попередній не завершився (програму зупинила система), закриває його. */
     @Synchronized
-    fun begin(context: Context, text: String) {
+    fun begin(context: Context, text: String, type: String? = null) {
         val now = System.currentTimeMillis()
         val list = load(context).map { if (it.endedAt == null) it.copy(endedAt = it.events.lastOrNull()?.at ?: now) else it }
-        save(context, (listOf(HistorySession(now, null, listOf(HistoryEvent(now, text)))) + list).take(MAX))
+        save(context, (listOf(HistorySession(now, null, listOf(HistoryEvent(now, text, type)))) + list).take(MAX))
     }
 
     /** Подія в поточному сеансі; якщо сеансу немає, починає його. */
     @Synchronized
-    fun add(context: Context, text: String) {
+    fun add(context: Context, text: String, type: String? = null) {
         val list = load(context)
         val current = list.firstOrNull()
         if (current == null || current.endedAt != null) {
-            begin(context, text)
+            begin(context, text, type)
             return
         }
-        val event = HistoryEvent(System.currentTimeMillis(), text)
+        val event = HistoryEvent(System.currentTimeMillis(), text, type)
         save(context, listOf(current.copy(events = current.events + event)) + list.drop(1))
     }
 
     @Synchronized
-    fun end(context: Context, text: String? = null) {
+    fun end(context: Context, text: String? = null, type: String? = null) {
         val list = load(context)
         val current = list.firstOrNull()?.takeIf { it.endedAt == null } ?: return
         val now = System.currentTimeMillis()
-        val events = if (text != null) current.events + HistoryEvent(now, text) else current.events
+        val events = if (text != null) current.events + HistoryEvent(now, text, type) else current.events
         save(context, listOf(current.copy(endedAt = now, events = events)) + list.drop(1))
     }
 
     /** Окремий завершений запис, наприклад коли правило перенесло будильник. */
     @Synchronized
-    fun note(context: Context, text: String) {
+    fun note(context: Context, text: String, type: String? = null) {
         val now = System.currentTimeMillis()
-        save(context, (listOf(HistorySession(now, now, listOf(HistoryEvent(now, text)))) + load(context)).take(MAX))
+        save(context, (listOf(HistorySession(now, now, listOf(HistoryEvent(now, text, type)))) + load(context)).take(MAX))
     }
 
     @Synchronized
@@ -83,7 +84,7 @@ object History {
             JSONObject()
                 .put("start", s.startedAt)
                 .put("end", s.endedAt ?: JSONObject.NULL)
-                .put("events", JSONArray(s.events.map { JSONObject().put("at", it.at).put("text", it.text) }))
+                .put("events", JSONArray(s.events.map { JSONObject().put("at", it.at).put("text", it.text).put("type", it.type) }))
         })
         file(context).writeText(arr.toString())
     }
@@ -98,7 +99,9 @@ object History {
                     startedAt = o.getLong("start"),
                     endedAt = if (o.isNull("end")) null else o.getLong("end"),
                     events = (0 until events.length()).map { j ->
-                        events.getJSONObject(j).let { HistoryEvent(it.getLong("at"), it.getString("text")) }
+                        events.getJSONObject(j).let {
+                            HistoryEvent(it.getLong("at"), it.getString("text"), it.optString("type").takeIf { t -> t.isNotEmpty() })
+                        }
                     },
                 )
             }

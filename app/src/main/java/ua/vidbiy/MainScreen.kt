@@ -168,6 +168,54 @@ class SettingsState(val prefs: Prefs, private val onScheduleChange: () -> Unit =
         prefs.watchVibrate = value
     }
 
+    var dismissTask by mutableStateOf(prefs.dismissTask)
+        private set
+    var mathLevel by mutableStateOf(prefs.mathLevel)
+        private set
+    var mathCount by mutableIntStateOf(prefs.mathCount)
+        private set
+    var shakeCount by mutableIntStateOf(prefs.shakeCount)
+        private set
+
+    fun updateDismiss(
+        task: DismissTask = dismissTask,
+        level: MathLevel = mathLevel,
+        count: Int = mathCount,
+        shakes: Int = shakeCount,
+    ) {
+        prefs.dismissTask = task
+        prefs.mathLevel = level
+        prefs.mathCount = count
+        prefs.shakeCount = shakes
+        dismissTask = task
+        mathLevel = level
+        mathCount = count
+        shakeCount = shakes
+    }
+
+    var voice by mutableStateOf(prefs.voice)
+        private set
+
+    fun updateVoice(value: Boolean) {
+        voice = value
+        prefs.voice = value
+    }
+
+    var webhooks by mutableStateOf(prefs.webhooks)
+        private set
+
+    fun newWebhook() = Webhook(id = (webhooks.maxOfOrNull { it.id } ?: 0) + 1)
+
+    fun saveWebhook(hook: Webhook) {
+        prefs.webhooks = if (webhooks.any { it.id == hook.id }) webhooks.map { if (it.id == hook.id) hook else it } else webhooks + hook
+        webhooks = prefs.webhooks
+    }
+
+    fun deleteWebhook(id: Int) {
+        prefs.webhooks = webhooks.filter { it.id != id }
+        webhooks = prefs.webhooks
+    }
+
     fun updateRegion(value: Region) {
         region = value
         prefs.region = value
@@ -241,7 +289,7 @@ class Actions(
     val bedtimeIssues: () -> List<String>,
 )
 
-private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE, RULES, HISTORY }
+private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE, RULES, HISTORY, DISMISS, WEBHOOKS, STATS }
 
 @Composable
 fun VidbiyApp(
@@ -259,6 +307,7 @@ fun VidbiyApp(
     var rulesReturn by remember { mutableStateOf(Screen.SETTINGS) }
     var editingAlarm by remember { mutableStateOf<Int?>(null) }
     var editingRule by remember { mutableStateOf<Int?>(null) }
+    var editingWebhook by remember { mutableStateOf<Int?>(null) }
     var dialog by remember { mutableStateOf<AppDialog?>(null) }
     var bedtimeWarning by remember { mutableStateOf<List<String>?>(null) }
     val armChecked = {
@@ -302,7 +351,13 @@ fun VidbiyApp(
             } else {
                 rulesReturn
             }
-            Screen.HISTORY -> Screen.SETTINGS
+            Screen.WEBHOOKS -> if (editingWebhook != null) {
+                editingWebhook = null
+                Screen.WEBHOOKS
+            } else {
+                Screen.SETTINGS
+            }
+            Screen.HISTORY, Screen.DISMISS, Screen.STATS -> Screen.SETTINGS
             else -> Screen.HOME
         }
     }
@@ -322,6 +377,12 @@ fun VidbiyApp(
             screen = Screen.HISTORY
         } else if (it == AppDialog.TOUR) {
             tourSeen = false
+        } else if (it == AppDialog.DISMISS) {
+            screen = Screen.DISMISS
+        } else if (it == AppDialog.WEBHOOKS) {
+            screen = Screen.WEBHOOKS
+        } else if (it == AppDialog.STATS) {
+            screen = Screen.STATS
         } else {
             dialog = it
         }
@@ -361,6 +422,14 @@ fun VidbiyApp(
                     onBack = { screen = rulesReturn },
                 )
                 Screen.HISTORY -> HistoryScreen(onBack = { screen = Screen.SETTINGS })
+                Screen.DISMISS -> DismissScreen(settings, actions, onBack = { screen = Screen.SETTINGS })
+                Screen.WEBHOOKS -> WebhooksScreen(
+                    settings,
+                    editingId = editingWebhook,
+                    onEdit = { editingWebhook = it },
+                    onBack = { screen = Screen.SETTINGS },
+                )
+                Screen.STATS -> StatsScreen(settings, onBack = { screen = Screen.SETTINGS })
                 Screen.SOUND -> SoundScreen(
                     settings = settings,
                     actions = actions,
@@ -433,7 +502,8 @@ fun VidbiyApp(
             onDismiss = { dialog = null },
         )
 
-        AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, AppDialog.RULES, AppDialog.HISTORY, AppDialog.TOUR, null -> Unit
+        AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, AppDialog.RULES, AppDialog.HISTORY, AppDialog.TOUR,
+        AppDialog.DISMISS, AppDialog.WEBHOOKS, AppDialog.STATS, null -> Unit
     }
 
     bedtimeWarning?.let { issues ->
@@ -486,7 +556,7 @@ private fun RegionScreen(settings: SettingsState, onBack: () -> Unit) {
     }
 }
 
-enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND, SCHEDULE, STABLE, SUNRISE, RULES, HISTORY, TOUR }
+enum class AppDialog { REGION, SOURCE, CUTOFF, SOUND, SCHEDULE, STABLE, SUNRISE, RULES, HISTORY, TOUR, DISMISS, WEBHOOKS, STATS }
 
 @Composable
 private fun HomeScreen(

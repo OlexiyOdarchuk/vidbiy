@@ -64,7 +64,7 @@ object NightRules {
         return shift ?: RuleOutcome.None
     }
 
-    private fun merge(intervals: List<LongRange>): List<LongRange> {
+    fun merge(intervals: List<LongRange>): List<LongRange> {
         val out = ArrayList<LongRange>()
         for (r in intervals.sortedBy { it.first }) {
             val last = out.lastOrNull()

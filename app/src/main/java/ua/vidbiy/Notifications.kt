@@ -77,7 +77,11 @@ object Notifications {
             .addAction(0, "Скасувати", WatchService.pendingAction(context, WatchService.ACTION_STOP))
             .build()
 
-    fun alarm(context: Context, reason: String, localOnly: Boolean = false): Notification {
+    /** Якщо для вимкнення треба виконати завдання, «Вимкнути» відкриває екран сигналу. */
+    private fun dismissAction(context: Context, withTask: Boolean): PendingIntent =
+        if (withTask) activityIntent(context, AlarmActivity::class.java) else WatchService.pendingAction(context, WatchService.ACTION_STOP)
+
+    fun alarm(context: Context, reason: String, localOnly: Boolean = false, withTask: Boolean = false): Notification {
         val fullScreen = activityIntent(context, AlarmActivity::class.java)
         return NotificationCompat.Builder(context, CH_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
@@ -90,13 +94,13 @@ object Notifications {
             .setContentIntent(fullScreen)
             .setOngoing(true)
             .setLocalOnly(localOnly)
-            .addAction(0, "Вимкнути", WatchService.pendingAction(context, WatchService.ACTION_STOP))
+            .addAction(0, "Вимкнути", dismissAction(context, withTask))
             .addAction(0, "Ще 5 хв", WatchService.pendingAction(context, WatchService.ACTION_SNOOZE))
             .build()
     }
 
     /** Копія сигналу для годинника: пересилається через програму-компаньйон і вібрує там. */
-    fun wearAlarm(context: Context, reason: String): Notification =
+    fun wearAlarm(context: Context, reason: String, withTask: Boolean = false): Notification =
         NotificationCompat.Builder(context, CH_WEAR)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Прокидайтеся!")
@@ -105,7 +109,7 @@ object Notifications {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVibrate(wearBuzz)
             .setOngoing(true)
-            .addAction(0, "Вимкнути", WatchService.pendingAction(context, WatchService.ACTION_STOP))
+            .addAction(0, "Вимкнути", dismissAction(context, withTask))
             .addAction(0, "Ще 5 хв", WatchService.pendingAction(context, WatchService.ACTION_SNOOZE))
             .build()
 

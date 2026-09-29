@@ -30,9 +30,26 @@ class AlarmPlayer(private val context: Context) {
     private var player: MediaPlayer? = null
     private var ramp: Job? = null
     private var savedVolume = -1
+    private var level = MIN_VOLUME
+    private var ducked = false
+
+    /** Під час голосового оголошення мелодія звучить тихіше. */
+    fun duck(on: Boolean) {
+        ducked = on
+        applyVolume()
+    }
+
+    private fun applyVolume() {
+        val v = level * if (ducked) DUCK else 1f
+        try {
+            player?.setVolume(v, v)
+        } catch (_: IllegalStateException) {
+        }
+    }
 
     fun start(scope: CoroutineScope) {
         stop()
+        level = MIN_VOLUME
         try {
             savedVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
             audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
@@ -43,8 +60,8 @@ class AlarmPlayer(private val context: Context) {
         player = createPlayer()
         ramp = scope.launch {
             for (step in 0..RAMP_STEPS) {
-                val v = MIN_VOLUME + (1f - MIN_VOLUME) * step / RAMP_STEPS
-                player?.setVolume(v, v)
+                level = MIN_VOLUME + (1f - MIN_VOLUME) * step / RAMP_STEPS
+                applyVolume()
                 delay(RAMP_STEP_MS)
             }
         }
@@ -95,6 +112,7 @@ class AlarmPlayer(private val context: Context) {
 
     private companion object {
         const val MIN_VOLUME = 0.15f
+        const val DUCK = 0.25f
         const val RAMP_STEPS = 20
         const val RAMP_STEP_MS = 3_000L
     }

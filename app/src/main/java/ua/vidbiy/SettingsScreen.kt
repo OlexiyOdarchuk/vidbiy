@@ -20,6 +20,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Webhook
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material.icons.rounded.Watch
@@ -62,6 +66,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -182,6 +187,40 @@ fun SettingsScreen(
 
         SectionHeader("Пробудження")
         GlassCard {
+            SettingsRow(
+                icon = Icons.Rounded.Calculate,
+                title = "Вимкнення будильника",
+                value = dismissSummary(settings),
+                onClick = { onDialog(AppDialog.DISMISS) },
+            )
+            RowDivider()
+            val context = LocalContext.current
+            var noVoice by remember { mutableStateOf(false) }
+            val setVoice: (Boolean) -> Unit = { on ->
+                settings.updateVoice(on)
+                if (on) Announcer.checkUkrainian(context) { ok -> noVoice = !ok } else noVoice = false
+            }
+            SwitchRow(
+                icon = Icons.Rounded.RecordVoiceOver,
+                title = "Оголошувати голосом",
+                value = if (noVoice) {
+                    "Український голос не встановлено на телефоні: додайте його в налаштуваннях синтезу мовлення"
+                } else {
+                    "Під час сигналу голос скаже, чому дзвонить будильник, і котра година"
+                },
+                checked = settings.voice,
+                onChange = setVoice,
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.Webhook,
+                title = "Розумний дім і вебхуки",
+                value = settings.webhooks.count { it.enabled }.let {
+                    if (it == 0) "Запит на вашу адресу, коли настає відбій чи дзвонить будильник" else "Увімкнено: $it"
+                },
+                onClick = { onDialog(AppDialog.WEBHOOKS) },
+            )
+            RowDivider()
             SettingsRow(
                 icon = Icons.Rounded.DarkMode,
                 title = "Правила нічної тривоги",
@@ -305,6 +344,13 @@ fun SettingsScreen(
                 title = "Знайомство з програмою",
                 value = "Короткий огляд можливостей",
                 onClick = { onDialog(AppDialog.TOUR) },
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.BarChart,
+                title = "Статистика",
+                value = "Ночі з тривогою, сигнали й тривоги у вашому місці",
+                onClick = { onDialog(AppDialog.STATS) },
             )
             RowDivider()
             SettingsRow(
