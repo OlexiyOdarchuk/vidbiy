@@ -72,7 +72,7 @@
 
   <!-- Знайомство з програмою -->
   <section id="onboarding" class="screen" hidden>
-    <div class="steps" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="steps" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
 
     <div class="step" data-step="0">
       <div class="grow center">
@@ -93,13 +93,28 @@
     </div>
 
     <div class="step" data-step="2">
+      <div class="grow scroll">
+        <h2>Що ще вміє будильник</h2>
+        <p class="lead">Усе це вмикається в налаштуваннях, коли знадобиться.</p>
+        <div class="cards compact">
+          <div class="card info"><span class="badge" data-icon="alarm"></span><div><h3>Кілька будильників на час</h3><p>Наприклад, 07:30 у будні й 10:00 у вихідні. Під час тривоги будильник чекає відбою.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="bedtime"></span><div><h3>Правила нічної тривоги</h3><p>Була тривога вночі — будильник спрацює пізніше або не дзвонитиме, як заведено на навчанні чи роботі.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="shield"></span><div><h3>Відбій, що утримався</h3><p>Будильник може зачекати кілька хвилин, щоб не будити, якщо тривогу оголосять знову.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="charge"></span><div><h3>Перевірка перед сном та історія</h3><p>Попередить про низький заряд чи відсутність інтернету, а зранку покаже, коли була тривога й відбій.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="bell"></span><div><h3>Сповіщення, коли сторінка закрита</h3><p>Запасний сигнал, якщо браузер призупинив сторінку.</p></div></div>
+        </div>
+      </div>
+      <button class="btn primary" data-next>Далі</button>
+    </div>
+
+    <div class="step" data-step="3">
       <h2>Де ви навчаєтесь чи працюєте?</h2>
       <p class="lead">Будильник стежитиме за тривогою саме тут. Можна обрати область, район або громаду.</p>
       <div class="picker grow" id="onboarding-picker"></div>
       <button class="btn primary" data-next id="region-next">Далі</button>
     </div>
 
-    <div class="step" data-step="3">
+    <div class="step" data-step="4">
       <h2>Оберіть звук</h2>
       <p class="lead">Натисніть, щоб послухати. Можна обрати й свій файл.</p>
       <div class="grow scroll" id="onboarding-sounds"></div>
@@ -128,6 +143,10 @@
       <div class="banner" id="install-banner" hidden>
         <span data-icon="add"></span>
         <p>Додайте на початковий екран: <span class="inline-icon" data-icon="share"></span> «Поділитися» → «На початковий екран».</p>
+      </div>
+      <div class="banner bedtime" id="bedtime-card" hidden>
+        <span data-icon="warn"></span>
+        <div><b>Перед сном варто перевірити</b><ul id="bedtime-list"></ul></div>
       </div>
       <div class="schedule-card" id="schedule-card" role="button" tabindex="0">
         <span class="badge" data-icon="alarm"></span>
@@ -175,14 +194,24 @@
       <p class="notice" id="settings-locked" hidden>Налаштування можна змінити, коли будильник вимкнено.</p>
       <h4>Будильник</h4>
       <div class="group">
-        <button class="row" id="row-schedule"><span class="badge" data-icon="alarm"></span><span><b>Будильник на час</b><small id="row-schedule-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-schedule"><span class="badge" data-icon="alarm"></span><span><b>Будильники на час</b><small id="row-schedule-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-rules"><span class="badge" data-icon="bedtime"></span><span><b>Правила нічної тривоги</b><small id="row-rules-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-region"><span class="badge" data-icon="pin"></span><span><b>Регіон</b><small id="row-region-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-cutoff"><span class="badge" data-icon="clock"></span><span><b>Не будити після</b><small id="row-cutoff-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-sound"><span class="badge" data-icon="music"></span><span><b>Звук будильника</b><small id="row-sound-value"></small></span><span data-icon="right" class="dim"></span></button>
         <label class="row"><span class="badge" data-icon="warn"></span><span><b>Будити, якщо зник зв'язок</b><small>Якщо жодне джерело не відповідає понад 5 хвилин</small></span><input type="checkbox" class="switch" id="conn-switch"></label>
+        <button class="row" id="row-stable"><span class="badge" data-icon="shield"></span><span><b>Чекати, щоб відбій утримався</b><small id="row-stable-value"></small></span><span data-icon="right" class="dim"></span></button>
+      </div>
+      <h4>Сповіщення й підказки</h4>
+      <div class="group">
+        <label class="row"><span class="badge" data-icon="charge"></span><span><b>Перевірка перед сном</b><small>Попередить про низький заряд чи відсутність інтернету</small></span><input type="checkbox" class="switch" id="bedtime-switch"></label>
+        <label class="row"><span class="badge" data-icon="vibration"></span><span><b>Повідомляти про початок тривоги</b><small>Тихо, лише вібрацією</small></span><input type="checkbox" class="switch" id="notice-switch"></label>
+        <button class="row" id="row-sunrise"><span class="badge" data-icon="sunrise"></span><span><b>Світанок перед будильником</b><small id="row-sunrise-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <label class="row"><span class="badge" data-icon="bell"></span><span><b>Сповіщення, коли сторінка закрита</b><small>Запасний сигнал, якщо браузер призупинив сторінку. На iPhone — лише для програми з початкового екрана (iOS 16.4+)</small></span><input type="checkbox" class="switch" id="push-switch"></label>
       </div>
       <h4>Інше</h4>
       <div class="group">
+        <button class="row" id="row-history"><span class="badge" data-icon="history"></span><span><b>Історія ночей</b><small>Коли була тривога, відбій і сигнал</small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-test"><span class="badge" data-icon="volume"></span><span><b>Перевірити звук будильника</b></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-howto"><span class="badge" data-icon="info"></span><span><b id="row-howto-title">Як це працює</b></span><span data-icon="right" class="dim"></span></button>
         <a class="row" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest" target="_blank" rel="noopener"><span class="badge" data-icon="android"></span><span><b>Програма для Android</b><small>Працює у фоні, навіть коли телефон заблоковано</small></span><span data-icon="right" class="dim"></span></a>
@@ -196,7 +225,7 @@
   <section id="region" class="screen" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
-      <h2 class="bar-title">Регіон</h2>
+      <h2 class="bar-title" id="region-title">Регіон</h2>
     </header>
     <div class="picker grow" id="screen-picker"></div>
   </section>
@@ -210,35 +239,131 @@
     <div class="scroll grow" id="sound-list"></div>
   </section>
 
-  <!-- Будильник на час -->
+  <!-- Будильники на час -->
   <section id="schedule" class="screen" hidden>
     <header class="topbar">
       <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
-      <h2 class="bar-title">Будильник на час</h2>
-      <input type="checkbox" class="switch" id="schedule-switch" aria-label="Увімкнено" style="margin-left:auto">
+      <h2 class="bar-title">Будильники на час</h2>
     </header>
     <div class="scroll grow">
-      <label class="schedule-time">
-        <input type="time" id="schedule-time" aria-label="Час будильника">
-      </label>
       <p class="lead center-text" id="schedule-next"></p>
-      <h4>Дні</h4>
-      <div class="group pad">
-        <div class="days" id="schedule-days"></div>
-        <div class="presets" id="schedule-presets"></div>
-        <p class="hint-text" id="schedule-days-note" hidden></p>
-      </div>
+      <div class="alarm-list" id="alarm-list"></div>
+      <button class="btn tonal wide" id="alarm-add"><span data-icon="plus"></span>Додати будильник</button>
       <h4>Як це працює</h4>
       <div class="group pad">
         <ul class="how-list">
-          <li>Перед сном торкніться місяця й не закривайте сторінку: вона чекатиме заданого часу.</li>
-          <li>У цей час програма перевіряє, чи є тривога у вашому регіоні.</li>
+          <li>Перед сном торкніться місяця й не закривайте сторінку: вона чекатиме найближчого будильника.</li>
+          <li>У цей час програма перевіряє, чи є тривога в місці будильника.</li>
           <li>Тривоги немає — будильник дзвонить одразу, як звичайний.</li>
           <li>Триває тривога — будильник чекає й будить після відбою.</li>
+          <li>Якщо в будильнику ввімкнено «Пізніше після нічної тривоги», спершу діють правила нічної тривоги.</li>
           <li>«Не будити після» діє й тут: якщо відбій настане пізніше, будильник промовчить.</li>
           <li>Немає інтернету — будильник дзвонить за розкладом, щоб ви не проспали.</li>
         </ul>
       </div>
+    </div>
+  </section>
+
+  <!-- Один будильник на час -->
+  <section id="alarm-edit" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Будильник</h2>
+      <input type="checkbox" class="switch" id="alarm-switch" aria-label="Увімкнено" style="margin-left:auto">
+    </header>
+    <div class="scroll grow">
+      <label class="schedule-time">
+        <input type="time" id="alarm-time" aria-label="Час будильника">
+      </label>
+      <p class="lead center-text" id="alarm-next"></p>
+      <h4>Дні</h4>
+      <div class="group pad">
+        <div class="days" id="alarm-days"></div>
+        <div class="presets" id="alarm-presets"></div>
+        <p class="hint-text" id="alarm-days-note" hidden></p>
+      </div>
+      <h4>Місце</h4>
+      <div class="group">
+        <button class="row" id="row-alarm-place"><span class="badge" data-icon="pin"></span><span><b id="alarm-place-value"></b><small id="alarm-place-sub"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-alarm-place-reset" hidden><span class="badge" data-icon="undo"></span><span><b>Як основне місце</b><small id="alarm-place-main"></small></span></button>
+      </div>
+      <h4>Нічна тривога</h4>
+      <div class="group">
+        <label class="row"><span class="badge" data-icon="bedtime"></span><span><b>Пізніше після нічної тривоги</b><small id="alarm-night-note"></small></span><input type="checkbox" class="switch" id="alarm-night-switch"></label>
+        <button class="row" id="row-alarm-rules"><span class="badge" data-icon="gear"></span><span><b>Налаштувати правила</b></span><span data-icon="right" class="dim"></span></button>
+      </div>
+      <button class="btn text danger wide" id="alarm-delete">Видалити будильник</button>
+    </div>
+  </section>
+
+  <!-- Правила нічної тривоги -->
+  <section id="rules" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Правила нічної тривоги</h2>
+    </header>
+    <div class="scroll grow">
+      <p class="lead rules-lead">Зручно для навчання чи роботи, де після нічної тривоги початок переносять. Якщо вночі була тривога, будильник на час спрацює пізніше або не дзвонитиме.</p>
+      <p class="notice" id="rules-usage"></p>
+      <h4>Правила</h4>
+      <div class="group" id="rules-list"></div>
+      <p class="hint-text pad-x" id="rules-empty">Правил ще немає. Наприклад: якщо тривога була з 00:00 до 06:00 — будити о 09:00.</p>
+      <button class="btn tonal wide" id="rule-add"><span data-icon="plus"></span>Додати правило</button>
+      <h4>Як це працює</h4>
+      <div class="group pad">
+        <ul class="how-list">
+          <li>Правила перевіряються в час будильника за історією тривог у місці будильника.</li>
+          <li>Тривалість — сума всіх тривог у заданому проміжку ночі.</li>
+          <li>Якщо спрацювало кілька правил, «Не будити» важливіше, інакше обирається найпізніший час.</li>
+          <li>У новий час діє звичайна логіка: триває тривога — будильник чекає відбою.</li>
+          <li>Не вдалося отримати історію — будильник спрацює за розкладом, щоб ви не проспали.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Одне правило -->
+  <section id="rule-edit" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Правило</h2>
+      <input type="checkbox" class="switch" id="rule-switch" aria-label="Увімкнено" style="margin-left:auto">
+    </header>
+    <div class="scroll grow">
+      <p class="lead center-text rule-summary" id="rule-summary"></p>
+      <h4>Проміжок ночі</h4>
+      <div class="group pad fields">
+        <label class="field"><span>З</span><input type="time" id="rule-from"></label>
+        <label class="field"><span>До</span><input type="time" id="rule-to"></label>
+      </div>
+      <h4>Якщо тривога тривала</h4>
+      <div class="group pad">
+        <select id="rule-min" class="select" aria-label="Тривалість тривоги"></select>
+      </div>
+      <h4>Тоді</h4>
+      <div class="group pad fields column">
+        <select id="rule-action" class="select" aria-label="Дія">
+          <option value="AT">Будити о …</option>
+          <option value="LATER">Будити пізніше на …</option>
+          <option value="SKIP">Не будити</option>
+        </select>
+        <label class="field" id="rule-at-field"><span>Будити о</span><input type="time" id="rule-at"></label>
+        <select id="rule-later" class="select" aria-label="На скільки пізніше"></select>
+      </div>
+      <button class="btn text danger wide" id="rule-delete">Видалити правило</button>
+    </div>
+  </section>
+
+  <!-- Історія ночей -->
+  <section id="history" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Історія ночей</h2>
+    </header>
+    <div class="scroll grow">
+      <div class="history-list" id="history-list"></div>
+      <p class="hint-text pad-x" id="history-empty">Тут з'являться ночі, коли будильник стежив за тривогою.</p>
+      <button class="btn text danger wide" id="history-clear">Очистити історію</button>
     </div>
   </section>
 
@@ -273,6 +398,28 @@
       <div class="dialog-actions">
         <button value="clear" class="btn text">Без обмеження</button>
         <button value="ok" class="btn text accent">Готово</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="choice-dialog">
+    <form method="dialog">
+      <h3 id="choice-title"></h3>
+      <p id="choice-note" hidden></p>
+      <div class="choice-list" id="choice-list"></div>
+      <div class="dialog-actions">
+        <button value="" class="btn text">Скасувати</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="bedtime-dialog">
+    <form method="dialog">
+      <h3>Перед сном варто перевірити</h3>
+      <ul class="bedtime-items" id="bedtime-dialog-list"></ul>
+      <div class="dialog-actions">
+        <button value="" class="btn text">Скасувати</button>
+        <button value="arm" class="btn text accent">Увімкнути все одно</button>
       </div>
     </form>
   </dialog>

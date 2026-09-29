@@ -2,3 +2,19 @@ name = "vidbiy-proxy"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
+
+# Сповіщення, коли сторінка закрита: сервер щохвилини перевіряє зареєстровані очікування.
+[triggers]
+crons = ["* * * * *"]
+
+# Очікування для push-сповіщень. Створити: wrangler d1 create vidbiy, потім
+# wrangler d1 execute vidbiy --remote --file schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "vidbiy"
+database_id = "TODO" # підставити id з виводу wrangler d1 create
+
+# Відкритий ключ VAPID; закритий — секрет: wrangler secret put VAPID_PRIVATE_KEY (JWK у JSON).
+[vars]
+VAPID_PUBLIC_KEY = "BDMlDVYDDc5eTelBOboKcO8okdm9DGrGziuEkgV3lqOsQWYNr_OfxX9eGiM59x5twmgL_XTHtihpEE6zQyiTNi0"
+VAPID_SUBJECT = "https://vidbiy.ishawyha.dev"

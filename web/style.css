@@ -177,7 +177,7 @@ button.orb:active { transform: scale(0.93); }
 .badge svg.i { width: 22px; height: 22px; }
 
 /* Налаштування */
-#settings h4, #schedule h4 { margin: 22px 8px 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
+#settings h4, #schedule h4, #alarm-edit h4, #rules h4, #rule-edit h4 { margin: 22px 8px 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
 .group { border-radius: 24px; background: var(--glass); border: 1px solid var(--glass-border); overflow: hidden; }
 .row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; }
 .row + .row { border-top: 1px solid var(--glass-border); }
@@ -269,7 +269,7 @@ dialog input[type="time"] {
 
 /* Список регіонів прокручується всередині екрана, а не вся сторінка. */
 #onboarding, #region { height: 100dvh; min-height: 0; overflow: hidden; }
-#onboarding .step[data-step="2"] .picker { min-height: 0; }
+#onboarding .step[data-step="3"] .picker { min-height: 0; }
 
 /* Вбудований хрестик пошуку дублює власну кнопку очищення. */
 .search input::-webkit-search-cancel-button,
@@ -297,7 +297,7 @@ dialog input[type="time"] {
   }
   #onboarding, #region { height: min(760px, calc(100dvh - 48px)); }
   #settings { max-height: calc(100dvh - 48px); overflow-y: auto; }
-  #onboarding .step[data-step="0"] .orb, #onboarding .step[data-step="3"] .orb { width: 240px; height: 240px; }
+  #onboarding .step[data-step="0"] .orb, #onboarding .step[data-step="4"] .orb { width: 240px; height: 240px; }
 
   /* Головний екран: коло ліворуч, налаштування праворуч. */
   #home {
@@ -406,3 +406,85 @@ dialog input[type="time"] {
 .hint-text { color: var(--text-dim); font-size: 13px; margin-top: 8px; }
 .how-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
 .how-list li::marker { color: var(--amber); }
+
+/* Відбій, що має протриматися */
+.orb[data-phase="CLEARING"] { --c: var(--green); --pulse: 3.4s; }
+
+/* Список будильників на час */
+.alarm-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 12px; }
+.alarm-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 20px; border-radius: 24px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+}
+.alarm-open { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.alarm-open b { font-size: 34px; font-weight: 300; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.alarm-open small { color: var(--text-dim); font-size: 14px; }
+.alarm-open .inline-icon svg.i { width: 15px; height: 15px; margin-right: 4px; vertical-align: -2px; }
+.alarm-item.off .alarm-open { opacity: 0.5; }
+.btn.wide { width: 100%; }
+.btn.tonal svg.i { width: 20px; height: 20px; }
+.btn.danger { color: var(--red); margin-top: 16px; }
+.btn:disabled { opacity: 0.45; pointer-events: none; }
+
+/* Рядок з окремим перемикачем: основна частина — кнопка, перемикач — поруч. */
+.row.split { padding: 0 16px 0 0; }
+.row.split + .row, .row + .row.split, .row.split + .row.split { border-top: 1px solid var(--glass-border); }
+.row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 14px 0 14px 16px; text-align: left; }
+.row-main > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.row-main b { font-weight: 500; }
+
+/* Правила */
+.rules-lead { margin: 4px 4px 12px; font-size: 15px; max-width: none; }
+.rule-summary { margin: 8px auto 4px; font-size: 16px; color: var(--text); }
+.pad-x { padding: 0 8px; margin-bottom: 12px; }
+.fields { display: flex; gap: 12px; }
+.fields.column { flex-direction: column; }
+.field { flex: 1; display: flex; flex-direction: column; gap: 4px; color: var(--text-dim); font-size: 13px; }
+.field input {
+  font-size: 26px; text-align: center; padding: 8px; border-radius: 16px; color: var(--text);
+  background: var(--glass); border: 1px solid var(--glass-border); font-variant-numeric: tabular-nums;
+}
+.select {
+  width: 100%; min-height: 48px; padding: 0 14px; border-radius: 16px; font-size: 16px; color: var(--text);
+  background: var(--glass); border: 1px solid var(--glass-border);
+}
+.select option { background: var(--dialog); }
+.field input:disabled, .select:disabled { opacity: 0.45; }
+
+/* Історія ночей */
+.history-list { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 4px; }
+.night-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.night-head b { font-weight: 600; }
+.night-head small { color: var(--text-dim); font-size: 14px; }
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.events li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+.events time { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* Діалог вибору */
+.choice-list { display: flex; flex-direction: column; margin: 0 -8px; }
+.choice { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; text-align: left; }
+.choice span:first-child { flex: 1; }
+.choice.on { color: var(--amber); }
+.choice .check svg.i { width: 20px; height: 20px; }
+.choice:active { background: var(--glass); }
+
+/* Перевірка перед сном */
+.banner.bedtime b { font-weight: 600; }
+.banner.bedtime ul, .bedtime-items { margin: 4px 0 0; padding-left: 18px; color: var(--text-dim); }
+.bedtime-items { margin: 0 0 8px; font-size: 15px; display: flex; flex-direction: column; gap: 6px; }
+
+/* Світанок: нічний екран світлішає, текст темнішає */
+#night { transition: background-color 1s linear; }
+#night.dawn .night-clock { color: #5a3a14; }
+#night.dawn .night-status, #night.dawn .night-tip { color: #6b4a22; }
+
+@media (min-width: 900px) and (min-height: 560px) {
+  #schedule, #alarm-edit, #rules, #rule-edit, #history { max-height: calc(100dvh - 48px); overflow-y: auto; }
+  .alarm-open:hover b { color: var(--amber); }
+  .choice:hover { background: rgba(255, 255, 255, 0.08); }
+}
+
+/* Тур: сторінка з можливостями — картки щільніші, щоб усе вміщалося */
+.cards.compact { gap: 8px; }
+.cards.compact .card { padding: 12px 14px; }
+.cards.compact .card p { font-size: 14px; }

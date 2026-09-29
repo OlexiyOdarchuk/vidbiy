@@ -1,8 +1,8 @@
 // Кешує оболонку сайту, щоб він швидко відкривався й запускався без мережі.
 // Дані про тривоги йдуть через проксі на іншому домені й ніколи не кешуються тут.
-const CACHE = "vidbiy-v3";
+const CACHE = "vidbiy-v4";
 const SHELL = [
-  "./", "index.html", "style.css", "app.js", "icons.js", "regions.js",
+  "./", "index.html", "style.css", "app.js", "icons.js", "regions.js", "nightrule.js",
   "sounds.js", "nosleep.mp4", "manifest.webmanifest",
   "sounds/marimba.mp3", "sounds/sunrise.mp3", "sounds/harp.mp3", "sounds/birds.mp3",
   "sounds/pulse.mp3", "sounds/classic.mp3", "sounds/bells.mp3",
@@ -38,5 +38,30 @@ self.addEventListener("fetch", (e) => {
         return res;
       })
       .catch(() => caches.match(e.request).then((hit) => hit || caches.match("index.html"))),
+  );
+});
+
+// Сповіщення від сервера, коли сторінка призупинена чи закрита (див. worker/).
+self.addEventListener("push", (e) => {
+  let data = {};
+  try { data = e.data?.json() ?? {}; } catch {}
+  e.waitUntil(self.registration.showNotification(data.title || "Відбій", {
+    body: data.body || "",
+    tag: data.tag || "vidbiy",
+    renotify: true,
+    requireInteraction: !!data.alarm,
+    vibrate: data.alarm ? [800, 600, 800, 600, 800] : [300, 200, 300],
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => new URL(c.url).origin === location.origin);
+      return open ? open.focus() : self.clients.openWindow("./");
+    }),
   );
 });
