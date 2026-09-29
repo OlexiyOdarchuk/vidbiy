@@ -11,6 +11,7 @@
 import argparse
 import functools
 import http.server
+import json
 import re
 import shutil
 import subprocess
@@ -51,6 +52,9 @@ def build(out: Path, version: str) -> None:
         if js.name == "sw.js":
             text = re.sub(r'const CACHE = "vidbiy-[^"]*"', f'const CACHE = "vidbiy-{version}"', text)
         js.write_text(text, encoding="utf-8")
+
+    # Відкрита сторінка звіряє з цим файлом свою версію й сама оновлюється (див. checkUpdate в app.js).
+    (out / "version.json").write_text(json.dumps({"version": version}), encoding="utf-8")
 
     if f"app.js?v={version}" not in index.read_text(encoding="utf-8"):
         sys.exit("Помилка: не вдалося додати версію до index.html")

@@ -54,6 +54,7 @@ const watch = {
   checkedAt: 0,
   sawAlert: false,
   lastOk: 0,
+  lastTry: 0,
   cutoffAt: 0,
   timer: 0,
   generation: 0,
@@ -199,6 +200,7 @@ async function arm(resume = null) {
     checkedAt: 0,
     sawAlert: !!resume?.sawAlert,
     lastOk: Date.now(),
+    lastTry: 0,
     cutoffAt: resume?.cutoffAt || (settings.cutoff >= 0 ? nextOccurrence(settings.cutoff) : 0),
     generation: watch.generation + 1,
     test: false,
@@ -279,6 +281,7 @@ function startScheduledRun() {
     runStartedAt: Date.now(),
     text: `Будильник о ${watch.scheduleLabel}: перевірка тривоги…`,
     lastOk: Date.now(),
+    lastTry: 0,
     cutoffAt: settings.cutoff >= 0 ? nextOccurrence(settings.cutoff) : 0,
   });
   persistWatch();
@@ -295,6 +298,11 @@ async function tick() {
     finish(`Настав час ${hhmm(new Date(watch.cutoffAt))}, будильник вимкнено без сигналу`);
     return;
   }
+
+  // Поки сторінка була заморожена (згорнута чи телефон заснув), перевірок не було:
+  // цей час не рахуємо як відсутність зв'язку, інакше перша ж невдала спроба одразу будить.
+  if (watch.lastTry && Date.now() - watch.lastTry > POLL_MS * 3) watch.lastOk = Date.now();
+  watch.lastTry = Date.now();
 
   const region = settings.region;
   try {
@@ -822,3 +830,28 @@ else startApp();
 setInterval(() => { if (watch.phase !== "IDLE") render(); }, 10_000);
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+// ---------- Оновлення ----------
+
+// Версію в адресу модуля додає scripts/build_web.py; без неї (запуск із теки web/) не перевіряємо.
+const VERSION = new URL(import.meta.url).searchParams.get("v");
+const UPDATE_CHECK_MS = 30 * 60_000;
+
+// Нова версія підтягується перезавантаженням, але лише коли будильник вимкнено й відкрито головний екран:
+// стеження, сигнал чи налаштування не перериваємо, перевіримо знову пізніше.
+async function checkUpdate() {
+  if (!VERSION || watch.phase !== "IDLE" || $("home").hidden) return;
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+    const { version } = await res.json();
+    if (!version || version === VERSION || watch.phase !== "IDLE" || $("home").hidden) return;
+    // Кеш Cloudflare може ще кілька хвилин віддавати стару сторінку: під ту саму версію перезавантажуємо лише раз.
+    if (sessionStorage.getItem("vidbiy.update") === version) return;
+    sessionStorage.setItem("vidbiy.update", version);
+    location.reload();
+  } catch {}
+}
+setTimeout(checkUpdate, 5_000);
+setInterval(checkUpdate, UPDATE_CHECK_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+
