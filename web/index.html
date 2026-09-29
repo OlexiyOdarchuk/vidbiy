@@ -102,6 +102,8 @@
           <div class="card info"><span class="badge" data-icon="shield"></span><div><h3>Відбій, що утримався</h3><p>Будильник може зачекати кілька хвилин, щоб не будити, якщо тривогу оголосять знову.</p></div></div>
           <div class="card info"><span class="badge" data-icon="charge"></span><div><h3>Перевірка перед сном та історія</h3><p>Попередить про низький заряд чи відсутність інтернету, а зранку покаже, коли була тривога й відбій.</p></div></div>
           <div class="card info"><span class="badge" data-icon="bell"></span><div><h3>Сповіщення, коли сторінка закрита</h3><p>Запасний сигнал, якщо браузер призупинив сторінку.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="calc"></span><div><h3>Щоб точно прокинутися</h3><p>Вимкнення через приклад чи струшування телефона, а голос назве причину сигналу й час.</p></div></div>
+          <div class="card info"><span class="badge" data-icon="home"></span><div><h3>Розумний дім і статистика</h3><p>Після відбою сайт може надіслати запит, наприклад Home Assistant, щоб увімкнути світло. А статистика покаже, як часто ночі бувають тривожними.</p></div></div>
         </div>
       </div>
       <button class="btn primary" data-next>Далі</button>
@@ -202,6 +204,14 @@
         <label class="row"><span class="badge" data-icon="warn"></span><span><b>Будити, якщо зник зв'язок</b><small>Якщо жодне джерело не відповідає понад 5 хвилин</small></span><input type="checkbox" class="switch" id="conn-switch"></label>
         <button class="row" id="row-stable"><span class="badge" data-icon="shield"></span><span><b>Чекати, щоб відбій утримався</b><small id="row-stable-value"></small></span><span data-icon="right" class="dim"></span></button>
       </div>
+      <h4>Вимкнення будильника</h4>
+      <div class="group">
+        <button class="row" id="row-dismiss"><span class="badge" data-icon="calc"></span><span><b>Як вимикати</b><small id="row-dismiss-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-math-level" hidden><span class="badge" data-icon="calc"></span><span><b>Складність прикладів</b><small id="row-math-level-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-math-count" hidden><span class="badge" data-icon="check"></span><span><b>Скільки прикладів</b><small id="row-math-count-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-shake-count" hidden><span class="badge" data-icon="vibration"></span><span><b>Скільки струсів</b><small id="row-shake-count-value"></small></span><span data-icon="right" class="dim"></span></button>
+        <label class="row"><span class="badge" data-icon="voice"></span><span><b>Оголошувати голосом</b><small id="voice-note">Під час сигналу голос назве причину й час</small></span><input type="checkbox" class="switch" id="voice-switch"></label>
+      </div>
       <h4>Сповіщення й підказки</h4>
       <div class="group">
         <label class="row"><span class="badge" data-icon="charge"></span><span><b>Перевірка перед сном</b><small>Попередить про низький заряд чи відсутність інтернету</small></span><input type="checkbox" class="switch" id="bedtime-switch"></label>
@@ -212,6 +222,8 @@
       <h4>Інше</h4>
       <div class="group">
         <button class="row" id="row-history"><span class="badge" data-icon="history"></span><span><b>Історія ночей</b><small>Коли була тривога, відбій і сигнал</small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-stats"><span class="badge" data-icon="chart"></span><span><b>Статистика</b><small>Ваші ночі й тривоги у вашому місці</small></span><span data-icon="right" class="dim"></span></button>
+        <button class="row" id="row-hooks"><span class="badge" data-icon="home"></span><span><b>Розумний дім і вебхуки</b><small id="row-hooks-value"></small></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-test"><span class="badge" data-icon="volume"></span><span><b>Перевірити звук будильника</b></span><span data-icon="right" class="dim"></span></button>
         <button class="row" id="row-howto"><span class="badge" data-icon="info"></span><span><b id="row-howto-title">Як це працює</b></span><span data-icon="right" class="dim"></span></button>
         <a class="row" href="https://github.com/OlexiyOdarchuk/vidbiy/releases/latest" target="_blank" rel="noopener"><span class="badge" data-icon="android"></span><span><b>Програма для Android</b><small>Працює у фоні, навіть коли телефон заблоковано</small></span><span data-icon="right" class="dim"></span></a>
@@ -367,6 +379,74 @@
     </div>
   </section>
 
+  <!-- Розумний дім і вебхуки -->
+  <section id="hooks" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Розумний дім і вебхуки</h2>
+    </header>
+    <div class="scroll grow">
+      <p class="lead rules-lead">Сайт надсилатиме запит на вказану адресу, коли щось стається: наприклад, щоб після відбою Home Assistant увімкнув світло чи чайник.</p>
+      <div class="group" id="hooks-list"></div>
+      <p class="hint-text pad-x" id="hooks-empty">Ще немає жодного вебхука.</p>
+      <button class="btn tonal wide" id="hook-add"><span data-icon="plus"></span>Додати вебхук</button>
+      <p class="notice">Сайт може надсилати лише на адреси https. Для локальних адрес, як-от http://homeassistant.local, — програма для Android.</p>
+    </div>
+  </section>
+
+  <!-- Один вебхук -->
+  <section id="hook-edit" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Вебхук</h2>
+      <input type="checkbox" class="switch" id="hook-switch" aria-label="Увімкнено" style="margin-left:auto">
+    </header>
+    <div class="scroll grow">
+      <h4>Куди</h4>
+      <div class="group pad fields column">
+        <label class="field"><span>Назва</span><input type="text" id="hook-name" class="text-input" placeholder="Світло в спальні"></label>
+        <label class="field"><span>Адреса</span><input type="url" id="hook-url" class="text-input" placeholder="https://…/api/webhook/vidbiy" autocomplete="off" spellcheck="false"></label>
+        <p class="hint-text warn-text" id="hook-url-warn" hidden>Сайт може надсилати лише на адреси https.</p>
+        <label class="field"><span>Метод</span>
+          <select id="hook-method" class="select"><option>POST</option><option>GET</option><option>PUT</option></select>
+        </label>
+      </div>
+      <h4>Коли надсилати</h4>
+      <div class="group" id="hook-events"></div>
+      <h4>Додатково</h4>
+      <div class="group pad fields column">
+        <label class="field"><span>Заголовки, по одному в рядку</span><textarea id="hook-headers" class="text-input" rows="2" placeholder="Authorization: Bearer …" spellcheck="false"></textarea></label>
+        <label class="field" id="hook-body-field"><span>Тіло запиту</span><textarea id="hook-body" class="text-input mono" rows="4" spellcheck="false"></textarea></label>
+        <p class="hint-text">Підстановки: {event}, {event_name}, {place}, {time}, {timestamp}, {reason}. Порожнє тіло — JSON з подією, місцем, часом і причиною.</p>
+        <p class="hint-text">Home Assistant: створіть автоматизацію з тригером «Webhook», а тут вкажіть її адресу, наприклад https://ваш-домен/api/webhook/vidbiy.</p>
+      </div>
+      <button class="btn tonal wide" id="hook-test"><span data-icon="play"></span>Надіслати перевірку</button>
+      <p class="lead center-text hook-last" id="hook-last"></p>
+      <button class="btn text danger wide" id="hook-delete">Видалити вебхук</button>
+    </div>
+  </section>
+
+  <!-- Статистика -->
+  <section id="stats" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-back aria-label="Назад"><span data-icon="back"></span></button>
+      <h2 class="bar-title">Статистика</h2>
+    </header>
+    <div class="scroll grow">
+      <h4>Ваші ночі за 30 днів</h4>
+      <div class="stat-grid" id="stats-mine"></div>
+      <p class="hint-text pad-x" id="stats-mine-note"></p>
+      <h4 id="stats-region-title">Тривоги у вашому місці</h4>
+      <div class="group pad" id="stats-chart-box">
+        <p class="chart-title">Тривога вночі (18:00–09:00), останні 14 ночей</p>
+        <div class="bars" id="stats-bars" role="img"></div>
+        <div class="bars-axis"><span id="stats-axis-from"></span><span>сьогодні</span></div>
+      </div>
+      <div class="stat-grid" id="stats-region"></div>
+      <p class="hint-text pad-x" id="stats-region-note"></p>
+    </div>
+  </section>
+
   <!-- Нічний режим: затемнений екран, поки чекаємо на відбій -->
   <div id="night" hidden>
     <div class="night-inner">
@@ -383,6 +463,22 @@
       <div class="orb big" data-phase="RINGING"></div>
       <h1>Прокидайтеся!</h1>
       <p class="lead" id="alarm-reason"></p>
+    </div>
+    <div class="alarm-task" id="alarm-task" hidden>
+      <div id="task-math" hidden>
+        <p class="task-progress" id="task-math-progress"></p>
+        <p class="task-problem" id="task-problem"></p>
+        <form id="task-form" class="task-form">
+          <input type="text" id="task-answer" inputmode="numeric" autocomplete="off" aria-label="Відповідь" enterkeyhint="done">
+          <button class="btn primary">Перевірити</button>
+        </form>
+        <p class="task-wrong" id="task-wrong" hidden>Неправильно, ось інший приклад</p>
+      </div>
+      <div id="task-shake" hidden>
+        <p class="task-problem small">Струсніть телефон</p>
+        <p class="task-progress" id="task-shake-count"></p>
+        <div class="meter"><i id="task-shake-bar"></i></div>
+      </div>
     </div>
     <div class="alarm-actions">
       <button class="btn primary tall" id="alarm-stop">Вимкнути</button>

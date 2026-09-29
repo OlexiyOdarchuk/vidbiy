@@ -1,3 +1,7 @@
+import {
+  DEFAULT_BODY, HOOK_EVENTS, SHAKE_THRESHOLD, browserCanSend, buildRequest, checkAnswer, formatDuration,
+  hookVars, makeProblem, nightBars, nightStats, regionStats,
+} from "./extras.js";
 import { fillIcons, icon } from "./icons.js";
 import { describeRule, describeShift, evaluateNightRules, historyIntervals } from "./nightrule.js";
 import { DEFAULT_REGION, PROXY, ancestors, descendants, getJSON, getTree, mountPicker } from "./regions.js";
@@ -63,6 +67,12 @@ const settings = load(SETTINGS_KEY, {
   alertStartNotice: false,
   sunrise: 0, // хв світанку перед будильником на час; 0 — вимкнено
   push: false,
+  dismissTask: "NONE", // NONE | MATH | SHAKE
+  mathLevel: "EASY", // EASY | MEDIUM | HARD
+  mathCount: 1,
+  shakeCount: 20,
+  voice: false,
+  webhooks: [],
 });
 const saveSettings = () => save(SETTINGS_KEY, settings);
 
@@ -140,15 +150,18 @@ function loadHistory() {
   }
 }
 
-/** Подія в поточному сеансі; { start: true } відкриває новий сеанс (ніч). */
-function logEvent(text, { start = false } = {}) {
+/**
+ * Подія в поточному сеансі; { start: true } відкриває новий сеанс (ніч).
+ * type — для статистики: armed, scheduled, alert, clear, ring, snooze, stop, cutoff, shift, skip, offline.
+ */
+function logEvent(text, { start = false, type = "" } = {}) {
   const list = loadHistory();
   let session = list.at(-1);
   if (start || !session || session.end) {
     session = { start: Date.now(), end: 0, events: [] };
     list.push(session);
   }
-  session.events.push({ at: Date.now(), text });
+  session.events.push(type ? { at: Date.now(), text, type } : { at: Date.now(), text });
   save(HISTORY_KEY, list.slice(-HISTORY_MAX));
 }
 
@@ -278,6 +291,12 @@ async function unlockAudio() {
     }
   } catch {}
   sound.muted = false;
+  // Голос на iPhone теж запрацює вночі, лише якщо перше мовлення почалося з дотику.
+  if (settings.voice && window.speechSynthesis) {
+    const u = new SpeechSynthesisUtterance("");
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  }
 }
 
 async function keepScreenOn() {
@@ -344,7 +363,10 @@ async function arm(resume = null) {
       scheduleRun: false,
       sawAlert: false,
     });
-    if (!resume?.sessionId) logEvent(`Увімкнено: будильник о ${hhmm(new Date(scheduleAt))}`, { start: true });
+    if (!resume?.sessionId) {
+      logEvent(`Увімкнено: будильник о ${hhmm(new Date(scheduleAt))}`, { start: true, type: "armed" });
+      fireHooks("armed");
+    }
     interrupted = null;
     persistWatch();
     render();
@@ -363,7 +385,10 @@ async function arm(resume = null) {
     lastTry: 0,
     cutoffAt: resume?.cutoffAt || (settings.cutoff >= 0 ? nextOccurrence(settings.cutoff) : 0),
   });
-  if (!resume?.sessionId) logEvent("Увімкнено: чекати відбою", { start: true });
+  if (!resume?.sessionId) {
+    logEvent("Увімкнено: чекати відбою", { start: true, type: "armed" });
+    fireHooks("armed");
+  }
   interrupted = null;
   persistWatch();
   render();
@@ -423,10 +448,10 @@ async function startScheduledRun() {
     if (result) {
       const text = describeShift(label, result, TZ);
       if (result.skip) {
-        finish(text);
+        finish(text, "skip");
         return;
       }
-      logEvent(text);
+      logEvent(text, { type: "shift" });
       Object.assign(watch, { scheduleAt: result.at, shifted: true, shiftText: text, text });
       persistWatch();
       scheduleTick();
@@ -435,7 +460,7 @@ async function startScheduledRun() {
   }
 
   watch.scheduleLabel = hhmm(new Date(watch.scheduleAt));
-  logEvent(`Будильник о ${watch.scheduleLabel}: перевірка тривоги`);
+  logEvent(`Будильник о ${watch.scheduleLabel}: перевірка тривоги`, { type: "scheduled" });
   Object.assign(watch, {
     phase: "WAITING_ALERT",
     scheduleRun: true,
@@ -457,7 +482,7 @@ async function tick() {
   if (!CHECKING.includes(watch.phase)) return;
 
   if (watch.cutoffAt && Date.now() >= watch.cutoffAt) {
-    finish(`Настав час ${hhmm(new Date(watch.cutoffAt))}, будильник вимкнено без сигналу`);
+    finish(`Настав час ${hhmm(new Date(watch.cutoffAt))}, будильник вимкнено без сигналу`, "cutoff");
     return;
   }
 
@@ -476,10 +501,12 @@ async function tick() {
     if (r.status !== "NONE") {
       // Саме початок тривоги (була тиша), а не тривога, що вже йшла на момент увімкнення.
       if (watch.lastStatus === "NONE") {
-        logEvent("Почалася тривога");
+        logEvent("Почалася тривога", { type: "alert" });
         if (settings.alertStartNotice) navigator.vibrate?.([300, 200, 300]);
+        fireHooks("alert");
       } else if (watch.lastStatus === null) {
-        logEvent("Триває тривога");
+        logEvent("Триває тривога", { type: "alert" });
+        fireHooks("alert");
       }
       watch.lastStatus = "ALERT";
       watch.sawAlert = true;
@@ -493,13 +520,14 @@ async function tick() {
     } else if (watch.sawAlert) {
       watch.lastStatus = "NONE";
       const stable = settings.stableClear * MIN;
+      if (!watch.clearSince) {
+        watch.clearSince = Date.now();
+        logEvent("Відбій тривоги", { type: "clear" });
+        fireHooks("clear");
+      }
       if (!stable) {
         ring(`Відбій тривоги: ${region.name}`);
         return;
-      }
-      if (!watch.clearSince) {
-        watch.clearSince = Date.now();
-        logEvent("Відбій тривоги");
       }
       if (Date.now() - watch.clearSince >= stable) {
         ring(`Відбій тривоги: ${region.name}`);
@@ -520,7 +548,7 @@ async function tick() {
     if (gen !== watch.generation) return;
     if (!watch.noConnLogged) {
       watch.noConnLogged = true;
-      logEvent("Немає зв'язку");
+      logEvent("Немає зв'язку", { type: "offline" });
     }
     // Не знаємо, чи є тривога, — краще розбудити, ніж проспати.
     if (watch.scheduleRun && !watch.sawAlert && Date.now() - watch.runStartedAt >= 60_000) {
@@ -544,11 +572,13 @@ function ring(reason, { test = false } = {}) {
   watch.test = test || watch.test;
   if (test) watch.generation++;
   if (!watch.test) {
-    logEvent(`Сигнал: ${reason}`);
+    logEvent(`Сигнал: ${reason}`, { type: "ring" });
     syncPush();
+    fireHooks("ring", reason);
   }
   keepScreenOn();
   playAlarm();
+  startVoice(reason);
   navigator.vibrate?.([800, 600, 800, 600, 800]);
   hideNight();
   $("alarm-reason").textContent = reason;
@@ -562,7 +592,9 @@ function snooze() {
   const at = new Date(Date.now() + SNOOZE_MS);
   watch.phase = "SNOOZED";
   watch.text = `Повторний сигнал о ${hhmm(at)}`;
-  logEvent(`Відкладено до ${hhmm(at)}`);
+  logEvent(`Відкладено до ${hhmm(at)}`, { type: "snooze" });
+  stopVoice();
+  closeTask();
   const gen = watch.generation;
   const reason = watch.reason;
   watch.timer = setTimeout(() => gen === watch.generation && ring(reason), SNOOZE_MS);
@@ -570,12 +602,17 @@ function snooze() {
   bumpNight();
 }
 
-function finish(message = "") {
+/** type — для історії: stop (вимкнули), cutoff, skip. */
+function finish(message = "", type = "stop") {
   clearTimeout(watch.timer);
   sound.pause();
   releaseScreen();
+  stopVoice();
+  closeTask();
   if (!watch.test && watch.phase !== "IDLE") {
-    logEvent(message || "Вимкнено");
+    // «Будильник вимкнено» — лише коли вимкнули сигнал, а не скасували очікування.
+    if (!message && ["RINGING", "SNOOZED"].includes(watch.phase)) fireHooks("stop", watch.reason);
+    logEvent(message || "Вимкнено", { type });
     endSession();
   }
   Object.assign(watch, {
@@ -624,6 +661,190 @@ function armWithCheck() {
 }
 $("bedtime-dialog").addEventListener("close", () => {
   if ($("bedtime-dialog").returnValue === "arm" && watch.phase === "IDLE") arm(interrupted);
+});
+
+// ---------- Вебхуки ----------
+
+function fetchWithTimeout(url, init) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
+/** Надсилає один вебхук і запам'ятовує результат; помилки не впливають на будильник. */
+async function sendHook(hook, vars) {
+  const stamp = hhmm(new Date());
+  const { url, init } = buildRequest(hook, vars);
+  let result;
+  if (!browserCanSend(url)) {
+    result = `Не надіслано о ${stamp}: сайт може надсилати лише на адреси https`;
+  } else {
+    try {
+      const res = await fetchWithTimeout(url, init);
+      result = res.ok ? `Надіслано о ${stamp} · ${res.status}` : `Помилка о ${stamp}: сервер відповів ${res.status}`;
+    } catch {
+      // Сервер без CORS: браузер не покаже відповідь, але сам запит може дійти. PUT так надіслати не можна.
+      try {
+        if (init.method === "PUT") throw new Error("cors");
+        await fetchWithTimeout(url, { ...init, mode: "no-cors" });
+        result = `Надіслано о ${stamp} (відповідь недоступна)`;
+      } catch {
+        result = `Помилка о ${stamp}: немає зв'язку`;
+      }
+    }
+  }
+  hook.last = result;
+  saveSettings();
+  if (!$("hook-edit").hidden && editingHook === hook.id) renderHookEdit();
+  return result;
+}
+
+function fireHooks(event, reason = "") {
+  const hooks = settings.webhooks.filter((h) => h.enabled && h.url && h.events?.includes(event));
+  if (!hooks.length) return;
+  const vars = hookVars(event, { place: (watch.region || settings.region).name, reason });
+  for (const hook of hooks) sendHook(hook, vars);
+}
+
+// ---------- Голос ----------
+
+const synth = window.speechSynthesis;
+let ukVoice = null;
+let voiceTimer = 0;
+
+function pickVoice() {
+  ukVoice = synth?.getVoices().find((v) => v.lang?.toLowerCase().replace("_", "-").startsWith("uk")) || null;
+  if (!$("settings").hidden) render();
+}
+synth?.addEventListener?.("voiceschanged", pickVoice);
+pickVoice();
+
+/** Мелодію притишуємо, поки звучить голос (на iPhone гучність сторінці недоступна — там просто поверх). */
+function speak(text) {
+  if (!synth || !ukVoice) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = ukVoice;
+  u.lang = ukVoice.lang;
+  u.onstart = () => { sound.volume = 0.25; };
+  u.onend = u.onerror = () => { sound.volume = 1; };
+  synth.cancel();
+  synth.speak(u);
+}
+
+function startVoice(reason) {
+  stopVoice();
+  if (!settings.voice || !ukVoice) return;
+  const say = () => {
+    if (watch.phase !== "RINGING") return;
+    speak(`${reason}. Зараз ${hhmm(new Date())}.`);
+    voiceTimer = setTimeout(say, 30_000);
+  };
+  voiceTimer = setTimeout(say, 3_000);
+}
+
+function stopVoice() {
+  clearTimeout(voiceTimer);
+  synth?.cancel();
+  sound.volume = 1;
+}
+
+// ---------- Завдання для вимкнення ----------
+
+let task = null;
+
+/** «Вимкнути»: одразу або через приклад чи струшування. */
+function dismiss() {
+  if (settings.dismissTask === "SHAKE") startShake();
+  else if (settings.dismissTask === "MATH") startMath();
+  else finish();
+}
+
+function startMath() {
+  closeTask();
+  task = { kind: "MATH", done: 0, total: settings.mathCount, problem: makeProblem(settings.mathLevel) };
+  $("task-wrong").hidden = true;
+  $("task-answer").value = "";
+  renderTask();
+  $("task-answer").focus();
+}
+
+// Датчик руху на iPhone потребує дозволу, і запитати його можна лише в обробнику дотику.
+async function startShake() {
+  const Motion = window.DeviceMotionEvent;
+  if (!Motion) {
+    startMath();
+    return;
+  }
+  if (typeof Motion.requestPermission === "function") {
+    try {
+      if (await Motion.requestPermission() !== "granted") throw new Error("denied");
+    } catch {
+      toast("Немає доступу до датчика руху, розв'яжіть приклад");
+      startMath();
+      return;
+    }
+  }
+  closeTask();
+  task = { kind: "SHAKE", done: 0, total: settings.shakeCount, last: 0, seen: false };
+  addEventListener("devicemotion", onMotion);
+  // На комп'ютері подія є, але датчика немає — тоді приклад.
+  task.fallback = setTimeout(() => {
+    if (task?.kind === "SHAKE" && !task.seen) {
+      toast("Датчик руху недоступний, розв'яжіть приклад");
+      startMath();
+    }
+  }, 3_000);
+  renderTask();
+}
+
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity;
+  if (!task || task.kind !== "SHAKE" || a?.x == null) return;
+  task.seen = true;
+  if (Math.hypot(a.x, a.y, a.z) < SHAKE_THRESHOLD || Date.now() - task.last < 250) return;
+  task.last = Date.now();
+  task.done++;
+  navigator.vibrate?.(40);
+  if (task.done >= task.total) finish();
+  else renderTask();
+}
+
+function closeTask() {
+  if (task?.fallback) clearTimeout(task.fallback);
+  removeEventListener("devicemotion", onMotion);
+  task = null;
+  renderTask();
+}
+
+function renderTask() {
+  $("alarm-task").hidden = !task;
+  $("alarm").classList.toggle("tasking", !!task);
+  $("alarm-stop").hidden = !!task;
+  $("task-math").hidden = task?.kind !== "MATH";
+  $("task-shake").hidden = task?.kind !== "SHAKE";
+  if (task?.kind === "MATH") {
+    $("task-problem").textContent = `${task.problem.text} = ?`;
+    $("task-math-progress").textContent = task.total > 1 ? `Приклад ${task.done + 1} з ${task.total}` : "Розв'яжіть, щоб вимкнути";
+  } else if (task?.kind === "SHAKE") {
+    $("task-shake-count").textContent = `${task.done} з ${task.total}`;
+    $("task-shake-bar").style.width = `${Math.round((task.done / task.total) * 100)}%`;
+  }
+}
+
+$("task-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (task?.kind !== "MATH") return;
+  const ok = checkAnswer($("task-answer").value, task.problem.answer);
+  $("task-wrong").hidden = ok;
+  if (ok) task.done++;
+  if (task.done >= task.total) {
+    finish();
+    return;
+  }
+  task.problem = makeProblem(settings.mathLevel);
+  $("task-answer").value = "";
+  renderTask();
+  $("task-answer").focus();
 });
 
 // ---------- Нічний режим ----------
@@ -821,8 +1042,23 @@ function render() {
   $("bedtime-list").innerHTML = issues.map((t) => `<li>${esc(t)}</li>`).join("");
 
   $("settings-locked").hidden = idle;
-  for (const id of ["row-region", "row-cutoff", "row-test", "row-rules", "row-stable", "row-sunrise"]) $(id).disabled = !idle;
-  for (const id of ["conn-switch", "bedtime-switch", "notice-switch"]) $(id).disabled = !idle;
+  for (const id of ["row-region", "row-cutoff", "row-test", "row-rules", "row-stable", "row-sunrise",
+    "row-dismiss", "row-math-level", "row-math-count", "row-shake-count"]) $(id).disabled = !idle;
+  for (const id of ["conn-switch", "bedtime-switch", "notice-switch", "voice-switch"]) $(id).disabled = !idle;
+  $("row-dismiss-value").textContent = DISMISS[settings.dismissTask];
+  $("row-math-level").hidden = $("row-math-count").hidden = settings.dismissTask !== "MATH";
+  $("row-shake-count").hidden = settings.dismissTask !== "SHAKE";
+  $("row-math-level-value").textContent = MATH_LEVELS.find(([v]) => v === settings.mathLevel)?.[1] ?? "";
+  $("row-math-count-value").textContent = `${settings.mathCount} ${plural(settings.mathCount, "приклад", "приклади", "прикладів")}`;
+  $("row-shake-count-value").textContent = `${settings.shakeCount} ${plural(settings.shakeCount, "раз", "рази", "разів")}`;
+  $("voice-switch").checked = settings.voice;
+  $("voice-note").textContent = !synth ? "Цей браузер не вміє говорити"
+    : ukVoice ? "Під час сигналу голос назве причину й час" : "Український голос недоступний у цьому браузері";
+  const hooksOn = settings.webhooks.filter((h) => h.enabled).length;
+  $("row-hooks-value").textContent = hooksOn
+    ? `Увімкнено ${hooksOn} ${plural(hooksOn, "вебхук", "вебхуки", "вебхуків")}`
+    : "Запит на вашу адресу, коли настав відбій чи задзвонив будильник";
+  if (!$("hooks").hidden) renderHooks();
   $("conn-switch").checked = settings.alarmOnNoConnection;
   $("bedtime-switch").checked = settings.bedtimeCheck;
   $("notice-switch").checked = settings.alertStartNotice;
@@ -1002,6 +1238,132 @@ function renderHistory() {
   }).join("");
 }
 
+// ---------- Автоматичний нічний режим, вимкнення, вебхуки ----------
+
+const DISMISS = { NONE: "Одним дотиком", MATH: "Розв'язати приклад", SHAKE: "Струснути телефон" };
+const MATH_LEVELS = [["EASY", "Легкі: 34 + 57"], ["MEDIUM", "Середні: 47 × 6"], ["HARD", "Складні: 23 × 7 + 58"]];
+
+let editingHook = 0;
+const findHook = (id) => settings.webhooks.find((h) => h.id === id);
+
+function renderHooks() {
+  const list = settings.webhooks;
+  $("hooks-empty").hidden = list.length > 0;
+  $("hooks-list").hidden = !list.length;
+  $("hooks-list").innerHTML = list.map((h) => {
+    const events = HOOK_EVENTS.filter(([id]) => h.events?.includes(id)).map(([, name]) => name.toLowerCase()).join(", ");
+    return `
+    <div class="row split">
+      <button class="row-main" data-edit="${h.id}">
+        <span class="badge">${icon("home")}</span>
+        <span><b>${esc(h.name || h.url || "Без назви")}</b><small>${esc(events || "Жодної події")}</small></span>
+      </button>
+      <input type="checkbox" class="switch" data-toggle="${h.id}" aria-label="Увімкнено"${h.enabled ? " checked" : ""}>
+    </div>`;
+  }).join("");
+}
+
+function renderHookEdit() {
+  const h = findHook(editingHook);
+  if (!h) return;
+  $("hook-switch").checked = h.enabled;
+  for (const [id, key] of [["hook-name", "name"], ["hook-url", "url"], ["hook-headers", "headers"], ["hook-body", "body"]]) {
+    if (document.activeElement !== $(id)) $(id).value = h[key] || "";
+  }
+  $("hook-method").value = h.method || "POST";
+  $("hook-body").placeholder = DEFAULT_BODY;
+  $("hook-body-field").hidden = h.method === "GET";
+  $("hook-url-warn").hidden = !h.url || browserCanSend(h.url.replace(/\{[a-z_]+\}/g, "x"));
+  $("hook-events").innerHTML = HOOK_EVENTS.map(([id, name]) => `
+    <label class="check-row"><span>${name}</span><input type="checkbox" data-event="${id}"${h.events?.includes(id) ? " checked" : ""}></label>`).join("");
+  $("hook-last").textContent = h.last || "";
+  $("hook-test").disabled = !h.url;
+}
+
+function updateHook(patch, { quiet = false } = {}) {
+  const h = findHook(editingHook);
+  if (!h) return;
+  Object.assign(h, patch);
+  saveSettings();
+  // Під час набору тексту не перемальовуємо поля, лише те, що від них залежить.
+  if (quiet) {
+    $("hook-url-warn").hidden = !h.url || browserCanSend(h.url.replace(/\{[a-z_]+\}/g, "x"));
+    $("hook-test").disabled = !h.url;
+  } else {
+    render();
+    renderHookEdit();
+  }
+}
+
+// ---------- Статистика ----------
+
+const statTile = (value, label) => `<div class="stat"><b>${esc(value)}</b><small>${esc(label)}</small></div>`;
+
+async function renderStats() {
+  const now = Date.now();
+  const sessions = loadHistory();
+  const mine = nightStats(sessions, now);
+  $("stats-mine").innerHTML = [
+    statTile(mine.sessions, plural(mine.sessions, "ніч з будильником", "ночі з будильником", "ночей з будильником")),
+    statTile(mine.alertNights, plural(mine.alertNights, "ніч з тривогою", "ночі з тривогою", "ночей з тривогою")),
+    statTile(mine.rings, plural(mine.rings, "сигнал", "сигнали", "сигналів")),
+    statTile(mine.snoozes, plural(mine.snoozes, "відкладення", "відкладення", "відкладень")),
+    statTile(mine.shifts, "перенесено правилами"),
+    statTile(mine.dismissDelay == null ? "—" : formatDuration(Math.max(1, Math.round(mine.dismissDelay))), "від сигналу до вимкнення"),
+  ].join("");
+  const untyped = sessions.some((s) => s.start >= now - 30 * 86_400_000 && s.events.some((e) => !e.type));
+  $("stats-mine-note").textContent = !mine.sessions
+    ? "Тут з'явиться статистика, коли будильник попрацює кілька ночей."
+    : untyped ? "Записи, зроблені до оновлення, враховано не повністю." : "";
+
+  const region = settings.region;
+  $("stats-region-title").textContent = `Тривоги: ${region.name}`;
+  $("stats-region").innerHTML = "";
+  $("stats-chart-box").hidden = true;
+  if (!region.sirenId) {
+    $("stats-region-note").textContent = "Для цього місця немає історії тривог.";
+    return;
+  }
+  $("stats-region-note").textContent = "Завантаження…";
+  let intervals;
+  try {
+    intervals = await nightIntervals(region);
+  } catch {
+    $("stats-region-note").textContent = "Не вдалося завантажити дані про тривоги. Перевірте інтернет.";
+    return;
+  }
+  if ($("stats").hidden) return;
+  const r = regionStats(intervals, now);
+  if (!r) {
+    $("stats-region-note").textContent = "Останнім часом тривог не було.";
+    return;
+  }
+  const bars = nightBars(intervals, now);
+  const top = Math.max(60, ...bars.map((b) => b.minutes || 0));
+  $("stats-bars").innerHTML = bars.map((b) => {
+    const day = new Date(b.day).toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
+    if (b.minutes === null) return `<i class="none" title="${esc(day)}: немає даних"></i>`;
+    const title = b.minutes ? `${day}: ${formatDuration(b.minutes)}` : `${day}: без тривоги`;
+    return `<i class="${b.minutes ? "" : "zero"}" style="height:${b.minutes ? Math.max(6, Math.round((b.minutes / top) * 100)) : 3}%" title="${esc(title)}"></i>`;
+  }).join("");
+  $("stats-bars").setAttribute("aria-label", `Ночей з тривогою за 14 днів: ${bars.filter((b) => b.minutes).length}`);
+  $("stats-axis-from").textContent = new Date(bars[0].day).toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
+  $("stats-chart-box").hidden = false;
+  $("stats-region").innerHTML = [
+    // Даних може бути менше, ніж за тиждень: тоді кажемо, з якого дня.
+    r.oldest > now - 7 * 86_400_000
+      ? statTile(r.total, `${plural(r.total, "тривога", "тривоги", "тривог")} з ${new Date(r.oldest).toLocaleDateString("uk-UA", { day: "numeric", month: "long" })}`)
+      : statTile(r.week, `${plural(r.week, "тривога", "тривоги", "тривог")} за 7 днів`),
+    statTile(formatDuration(Math.round(r.avg)), "середня тривалість"),
+    statTile(formatDuration(Math.round(r.longest)), "найдовша"),
+    statTile(`${Math.round(r.nightShare * 100)} %`, "тривог уночі (00:00–06:00)"),
+    r.endHour == null ? "" : statTile(`${String(r.endHour).padStart(2, "0")}:00`, "найчастіше закінчуються нічні"),
+  ].join("");
+  const since = new Date(r.oldest).toLocaleDateString("uk-UA", { day: "numeric", month: "long" });
+  $("stats-region-note").textContent =
+    `За даними siren.pp.ua: останні ${r.total} ${plural(r.total, "тривога", "тривоги", "тривог")} з ${since}.`;
+}
+
 // ---------- Вибір зі списку ----------
 
 /** Діалог з варіантами; повертає обране значення або undefined, якщо скасували. */
@@ -1027,7 +1389,7 @@ function choose(title, options, selected, note = "") {
 // ---------- Екрани ----------
 
 const SCREENS = ["get-android", "install-ios", "onboarding", "home", "settings", "region", "sounds",
-  "schedule", "alarm-edit", "rules", "rule-edit", "history"];
+  "schedule", "alarm-edit", "rules", "rule-edit", "history", "hooks", "hook-edit", "stats"];
 let regionReturn = "home";
 let regionMode = "main"; // main — основне місце, place — місце для будильника на час
 let howtoOnly = false;
@@ -1109,8 +1471,11 @@ document.querySelectorAll("[data-back]").forEach((b) =>
   b.addEventListener("click", () => {
     if (!$("region").hidden) {
       if (!screenPicker.back()) show(regionMode === "place" ? "alarm-edit" : regionReturn);
-    } else if (!$("sounds").hidden || !$("history").hidden) {
+    } else if (["sounds", "history", "hooks", "stats"].some((id) => !$(id).hidden)) {
       show("settings");
+    } else if (!$("hook-edit").hidden) {
+      renderHooks();
+      show("hooks");
     } else if (!$("alarm-edit").hidden) {
       show("schedule");
     } else if (!$("schedule").hidden) {
@@ -1261,6 +1626,99 @@ $("history-clear").addEventListener("click", () => {
   renderHistory();
 });
 
+// Статистика
+$("row-stats").addEventListener("click", () => {
+  show("stats");
+  renderStats();
+});
+
+// Вимкнення будильника
+$("row-dismiss").addEventListener("click", async () => {
+  const value = await choose("Як вимикати будильник", Object.entries(DISMISS), settings.dismissTask,
+    "Щоб не вимкнути крізь сон. «Ще 5 хвилин» працює без завдання. Спробувати можна через «Перевірити звук будильника».");
+  if (value === undefined) return;
+  settings.dismissTask = value;
+  saveSettings();
+  render();
+});
+$("row-math-level").addEventListener("click", async () => {
+  const value = await choose("Складність прикладів", MATH_LEVELS, settings.mathLevel);
+  if (value === undefined) return;
+  settings.mathLevel = value;
+  saveSettings();
+  render();
+});
+$("row-math-count").addEventListener("click", async () => {
+  const value = await choose("Скільки прикладів", [1, 2, 3, 4, 5].map((n) => [n, String(n)]), settings.mathCount);
+  if (value === undefined) return;
+  settings.mathCount = value;
+  saveSettings();
+  render();
+});
+$("row-shake-count").addEventListener("click", async () => {
+  const value = await choose("Скільки струсів", [10, 20, 30, 50].map((n) => [n, `${n} разів`]), settings.shakeCount);
+  if (value === undefined) return;
+  settings.shakeCount = value;
+  saveSettings();
+  render();
+});
+
+// Розумний дім і вебхуки
+$("row-hooks").addEventListener("click", () => {
+  renderHooks();
+  show("hooks");
+});
+function openHook(id) {
+  editingHook = id;
+  renderHookEdit();
+  show("hook-edit");
+}
+$("hooks-list").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-edit]");
+  if (b) openHook(+b.dataset.edit);
+});
+$("hooks-list").addEventListener("change", (e) => {
+  const h = findHook(+e.target.dataset.toggle);
+  if (!h) return;
+  h.enabled = e.target.checked;
+  saveSettings();
+  render();
+});
+$("hook-add").addEventListener("click", () => {
+  const id = Math.max(0, ...settings.webhooks.map((h) => h.id)) + 1;
+  settings.webhooks.push({ id, enabled: true, name: "", url: "", method: "POST", events: ["clear"], headers: "", body: "", last: "" });
+  saveSettings();
+  openHook(id);
+});
+$("hook-switch").addEventListener("change", (e) => updateHook({ enabled: e.target.checked }));
+for (const [id, key] of [["hook-name", "name"], ["hook-url", "url"], ["hook-headers", "headers"], ["hook-body", "body"]]) {
+  $(id).addEventListener("input", (e) => updateHook({ [key]: e.target.value }, { quiet: true }));
+}
+$("hook-method").addEventListener("change", (e) => updateHook({ method: e.target.value }));
+$("hook-events").addEventListener("change", (e) => {
+  const h = findHook(editingHook);
+  const ev = e.target.dataset.event;
+  if (!h || !ev) return;
+  const events = new Set(h.events || []);
+  if (e.target.checked) events.add(ev);
+  else events.delete(ev);
+  updateHook({ events: HOOK_EVENTS.map(([id]) => id).filter((id) => events.has(id)) });
+});
+$("hook-test").addEventListener("click", async () => {
+  const h = findHook(editingHook);
+  if (!h?.url) return;
+  $("hook-test").disabled = true;
+  $("hook-last").textContent = "Надсилання…";
+  await sendHook(h, hookVars("test", { place: settings.region.name, reason: "Перевірка" }));
+  $("hook-test").disabled = false;
+});
+$("hook-delete").addEventListener("click", () => {
+  settings.webhooks = settings.webhooks.filter((h) => h.id !== editingHook);
+  saveSettings();
+  renderHooks();
+  show("hooks");
+});
+
 // Головний екран
 $("main-orb").addEventListener("click", () => {
   if (watch.phase === "IDLE") armWithCheck();
@@ -1286,6 +1744,7 @@ $("row-cutoff").addEventListener("click", openCutoff);
 bindSwitch("conn-switch", "alarmOnNoConnection");
 bindSwitch("bedtime-switch", "bedtimeCheck");
 bindSwitch("notice-switch", "alertStartNotice");
+bindSwitch("voice-switch", "voice");
 $("row-stable").addEventListener("click", async () => {
   const value = await choose(
     "Чекати, щоб відбій утримався",
@@ -1328,7 +1787,7 @@ $("row-howto").addEventListener("click", () => {
 });
 
 // Будильник
-$("alarm-stop").addEventListener("click", () => finish());
+$("alarm-stop").addEventListener("click", dismiss);
 $("alarm-snooze").addEventListener("click", () => {
   if (watch.test) finish();
   else snooze();

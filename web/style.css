@@ -177,7 +177,7 @@ button.orb:active { transform: scale(0.93); }
 .badge svg.i { width: 22px; height: 22px; }
 
 /* Налаштування */
-#settings h4, #schedule h4, #alarm-edit h4, #rules h4, #rule-edit h4 { margin: 22px 8px 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
+#settings h4, #schedule h4, #alarm-edit h4, #rules h4, #rule-edit h4, #hook-edit h4, #stats h4 { margin: 22px 8px 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
 .group { border-radius: 24px; background: var(--glass); border: 1px solid var(--glass-border); overflow: hidden; }
 .row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; }
 .row + .row { border-top: 1px solid var(--glass-border); }
@@ -479,7 +479,7 @@ dialog input[type="time"] {
 #night.dawn .night-status, #night.dawn .night-tip { color: #6b4a22; }
 
 @media (min-width: 900px) and (min-height: 560px) {
-  #schedule, #alarm-edit, #rules, #rule-edit, #history { max-height: calc(100dvh - 48px); overflow-y: auto; }
+  #schedule, #alarm-edit, #rules, #rule-edit, #history, #hooks, #hook-edit, #stats { max-height: calc(100dvh - 48px); overflow-y: auto; }
   .alarm-open:hover b { color: var(--amber); }
   .choice:hover { background: rgba(255, 255, 255, 0.08); }
 }
@@ -488,3 +488,48 @@ dialog input[type="time"] {
 .cards.compact { gap: 8px; }
 .cards.compact .card { padding: 12px 14px; }
 .cards.compact .card p { font-size: 14px; }
+
+/* Вебхуки */
+.text-input {
+  width: 100%; padding: 12px 14px; border-radius: 16px; font-size: 16px; color: var(--text);
+  background: var(--glass); border: 1px solid var(--glass-border); resize: vertical; font-family: inherit;
+}
+.text-input:focus { outline: none; border-color: var(--amber); }
+.field .text-input { font-size: 16px; text-align: left; padding: 12px 14px; font-variant-numeric: normal; }
+.text-input.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+.warn-text { color: var(--amber); margin-top: 0; }
+.hook-last { margin: 12px auto 0; font-size: 14px; }
+.group .check-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.group .check-row + .check-row { border-top: 1px solid var(--glass-border); }
+.check-row span { flex: 1; }
+.check-row input { width: 22px; height: 22px; accent-color: var(--amber); }
+
+/* Завдання для вимкнення */
+.alarm-task { width: 100%; max-width: 420px; text-align: center; }
+.task-problem { font-size: 44px; font-weight: 300; font-variant-numeric: tabular-nums; margin: 4px 0 12px; }
+.task-progress { color: var(--text-dim); font-size: 15px; }
+.task-problem.small { font-size: 28px; font-weight: 500; }
+/* Під час завдання ховаємо коло, щоб поле й клавіатура вмістилися на екрані. */
+#alarm.tasking .center .orb { display: none; }
+.task-form { display: flex; flex-direction: column; gap: 10px; }
+.task-form input {
+  font-size: 32px; text-align: center; padding: 10px; border-radius: 18px; color: var(--text);
+  background: var(--glass); border: 1px solid var(--glass-border); font-variant-numeric: tabular-nums;
+}
+.task-form input:focus { outline: none; border-color: var(--amber); }
+.task-wrong { color: var(--red); font-size: 15px; margin-top: 10px; }
+.meter { height: 10px; border-radius: 999px; background: var(--glass); overflow: hidden; margin-top: 14px; }
+.meter i { display: block; height: 100%; width: 0; background: var(--amber); transition: width .2s; }
+
+/* Статистика */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { padding: 14px 16px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-border); min-width: 0; }
+.stat b { display: block; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat small { color: var(--text-dim); font-size: 13px; }
+#stats-chart-box { margin-bottom: 10px; }
+.chart-title { color: var(--text-dim); font-size: 13px; margin-bottom: 10px; }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 96px; }
+.bars i { flex: 1; min-height: 3px; border-radius: 4px 4px 2px 2px; background: var(--red); }
+.bars i.zero { background: var(--glass-border); }
+.bars i.none { background: repeating-linear-gradient(45deg, var(--glass), var(--glass) 3px, transparent 3px, transparent 6px); height: 100% !important; }
+.bars-axis { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 12px; margin-top: 6px; }
