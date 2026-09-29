@@ -85,6 +85,8 @@ class MainActivity : ComponentActivity() {
             pickSystemSound = ::pickSystemSound,
             pickCustomSound = { customSoundPicker.launch(arrayOf("audio/*")) },
             openExactAlarmSettings = ::openExactAlarmSettings,
+            update = ::update,
+            checkUpdate = { Updater.check(this, force = true) },
         )
 
         setContent {
@@ -98,6 +100,16 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (::settings.isInitialized) settings.reloadSchedule()
         permissions = readPermissions()
+        Updater.check(this)
+    }
+
+    /** Кнопка «Оновити»: без дозволу на встановлення спершу ведемо в системні налаштування. */
+    private fun update() {
+        if (Updater.canInstall(this)) {
+            Updater.install(this)
+        } else {
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        }
     }
 
     private fun readPermissions(): Permissions {

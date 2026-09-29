@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Автооновлення з релізів на GitHub -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Будильник за розкладом: точний час і відновлення після перезавантаження -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission
@@ -44,6 +46,10 @@
 
         <receiver
             android:name=".AlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".UpdateReceiver"
             android:exported="false" />
 
         <receiver

@@ -31,7 +31,9 @@ import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -195,6 +198,37 @@ fun SettingsScreen(
                 title = "Перевірити звук будильника",
                 enabled = idle,
                 onClick = actions.test,
+            )
+            RowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.SystemUpdate,
+                title = "Оновлюватися автоматично",
+                value = "Нові версії з GitHub встановлюються, коли будильник вимкнено",
+                onClick = { settings.updateAutoUpdate(!settings.autoUpdate) },
+                trailing = {
+                    Switch(
+                        checked = settings.autoUpdate,
+                        onCheckedChange = settings::updateAutoUpdate,
+                        colors = SwitchDefaults.colors(checkedTrackColor = Night.Amber, checkedThumbColor = Night.OnAmber),
+                    )
+                },
+            )
+            RowDivider()
+            val update by Updater.state.collectAsStateWithLifecycle()
+            SettingsRow(
+                icon = Icons.Rounded.Refresh,
+                title = "Перевірити оновлення",
+                value = when (val u = update) {
+                    UpdateState.Checking -> "Перевірка…"
+                    UpdateState.UpToDate -> "Встановлено найновішу версію ${Updater.currentVersion}"
+                    is UpdateState.Available -> "Доступна версія ${u.version}"
+                    is UpdateState.Downloading -> "Завантаження версії ${u.version}…"
+                    is UpdateState.Installing -> "Встановлення версії ${u.version}…"
+                    is UpdateState.Failed -> u.message
+                    UpdateState.Idle -> "Версія ${Updater.currentVersion}"
+                },
+                enabled = idle,
+                onClick = if (update is UpdateState.Available) actions.update else actions.checkUpdate,
             )
             RowDivider()
             val uriHandler = LocalUriHandler.current

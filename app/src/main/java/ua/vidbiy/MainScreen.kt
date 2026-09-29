@@ -30,11 +30,13 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -108,6 +111,14 @@ class SettingsState(val prefs: Prefs, private val onScheduleChange: () -> Unit =
         prefs.cutoffMinutes = value
     }
 
+    var autoUpdate by mutableStateOf(prefs.autoUpdate)
+        private set
+
+    fun updateAutoUpdate(value: Boolean) {
+        autoUpdate = value
+        prefs.autoUpdate = value
+    }
+
     fun updateAlarmOnNoConnection(value: Boolean) {
         alarmOnNoConnection = value
         prefs.alarmOnNoConnection = value
@@ -157,6 +168,8 @@ class Actions(
     val pickSystemSound: () -> Unit,
     val pickCustomSound: () -> Unit,
     val openExactAlarmSettings: () -> Unit,
+    val update: () -> Unit,
+    val checkUpdate: () -> Unit,
 )
 
 private enum class Screen { HOME, SETTINGS, REGION, SOUND, SCHEDULE }
@@ -346,6 +359,7 @@ private fun HomeScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PermissionBanner(permissions, actions)
+                if (idle) UpdateBanner(actions)
                 ScheduleCard(settings, onOpen = { onDialog(AppDialog.SCHEDULE) })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     InfoTile(
@@ -529,6 +543,52 @@ private fun PermissionBanner(permissions: Permissions, actions: Actions) {
                     TextButton(onClick = onClick) { Text("Дозволити") }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateBanner(actions: Actions) {
+    val update by Updater.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val (title, detail, button) = when (val u = update) {
+        is UpdateState.Available ->
+            if (Updater.canInstall(context)) {
+                Triple("Доступна версія ${u.version}", null, "Оновити")
+            } else {
+                Triple(
+                    "Доступна версія ${u.version}",
+                    "Дозвольте встановлення з цієї програми, і нові версії встановлюватимуться самі",
+                    "Дозволити",
+                )
+            }
+        is UpdateState.Downloading -> Triple("Завантаження версії ${u.version}…", null, null)
+        is UpdateState.Installing -> Triple("Встановлення версії ${u.version}…", null, null)
+        is UpdateState.Failed -> if (u.version != null) Triple(u.message, null, "Повторити") else return
+        else -> return
+    }
+
+    GlassCard(color = Night.Blue.copy(alpha = 0.10f), border = Night.Blue.copy(alpha = 0.30f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        ) {
+            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, tint = Night.Blue, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                if (detail != null) {
+                    Text(detail, style = MaterialTheme.typography.bodySmall, color = Night.TextDim)
+                }
+            }
+            if (button != null) TextButton(onClick = actions.update) { Text(button) }
+        }
+        (update as? UpdateState.Downloading)?.let {
+            LinearProgressIndicator(
+                progress = { it.progress },
+                color = Night.Blue,
+                modifier = Modifier.fillMaxWidth().padding(start = 46.dp, end = 16.dp, bottom = 14.dp),
+            )
         }
     }
 }

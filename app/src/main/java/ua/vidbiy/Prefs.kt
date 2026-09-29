@@ -92,6 +92,14 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("alarm_no_conn", true)
         set(value) = sp.edit().putBoolean("alarm_no_conn", value).apply()
 
+    var autoUpdate: Boolean
+        get() = sp.getBoolean("auto_update", true)
+        set(value) = sp.edit().putBoolean("auto_update", value).apply()
+
+    var updateCheckedAt: Long
+        get() = sp.getLong("update_checked_at", 0L)
+        set(value) = sp.edit().putLong("update_checked_at", value).apply()
+
     var armed: Boolean
         get() = sp.getBoolean("armed", false)
         set(value) {

@@ -136,17 +136,27 @@ class WatchService : Service() {
                             ring("Будильник о ${prefs.scheduleLabel} (не вдалося перевірити тривогу)")
                             return@launch
                         }
+                        // Уночі перед будильником на час не будимо через зв'язок: він і так спрацює в заданий час.
+                        val wakeAt = if (prefs.scheduleRun) null else upcomingSchedule()
                         val offline = System.currentTimeMillis() - lastOk
-                        if (prefs.alarmOnNoConnection && offline >= NO_CONNECTION_MS) {
+                        if (prefs.alarmOnNoConnection && wakeAt == null && offline >= NO_CONNECTION_MS) {
                             ring("Понад ${NO_CONNECTION_MS / 60_000} хв немає зв'язку з жодним джерелом даних про тривоги")
                             return@launch
                         }
-                        update(phase, "${result.message}. Повторна спроба…")
+                        val retry = wakeAt?.let { "Будильник спрацює о ${formatTime(it)}. Повторна спроба…" }
+                            ?: "Повторна спроба…"
+                        update(phase, "${result.message}. $retry")
                     }
                 }
                 delay(POLL_MS)
             }
         }
+    }
+
+    /** Час найближчого будильника на час, якщо він спрацює протягом доби. */
+    private fun upcomingSchedule(): Long? {
+        val at = AlarmScheduler.nextTrigger(prefs)?.toInstant()?.toEpochMilli() ?: return null
+        return at.takeIf { it - System.currentTimeMillis() <= SCHEDULE_COVERS_MS }
     }
 
     private fun ring(reason: String) {
@@ -236,6 +246,7 @@ class WatchService : Service() {
         private const val SNOOZE_MS = 5 * 60_000L
         private const val NO_CONNECTION_MS = 5 * 60_000L
         private const val SCHEDULE_CHECK_MS = 60_000L
+        private const val SCHEDULE_COVERS_MS = 24 * 60 * 60_000L
         private const val WAKE_LOCK_MAX_MS = 24 * 60 * 60_000L
 
         private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
