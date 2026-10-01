@@ -176,5 +176,6 @@ class AlarmReceiver : BroadcastReceiver() {
 class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         AlarmScheduler.schedule(context)
+        Widgets.sync(context)
     }
 }

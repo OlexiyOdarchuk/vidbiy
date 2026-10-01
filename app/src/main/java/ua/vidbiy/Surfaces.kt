@@ -11,9 +11,10 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.widget.RemoteViews
 
-/** Плитка в «Швидких налаштуваннях» і віджет: показують стан і вмикають чи вимикають очікування. */
+/** Плитка в «Швидких налаштуваннях» і віджет стану: показують стан і вмикають чи вимикають очікування. */
 object Surfaces {
-    data class Status(val active: Boolean, val title: String, val subtitle: String)
+    /** [alarmOn] — нічого не триває, але будильник на час увімкнено: дотик не вмикає очікування відбою одразу. */
+    data class Status(val active: Boolean, val title: String, val subtitle: String, val alarmOn: Boolean = false)
 
     fun status(context: Context): Status {
         val state = WatchRepo.state.value
@@ -22,7 +23,7 @@ object Surfaces {
             Phase.IDLE -> {
                 val next = AlarmScheduler.next(prefs)?.first
                 if (next != null) {
-                    Status(false, "Будильник о ${AlarmScheduler.formatTime(next)}", "Торкніться, щоб чекати відбою зараз")
+                    Status(false, "Будильник о ${AlarmScheduler.formatTime(next)}", "Увімкнено, спрацює сам", alarmOn = true)
                 } else {
                     Status(false, "Вимкнено", "Торкніться, щоб чекати відбою")
                 }
@@ -39,6 +40,7 @@ object Surfaces {
         val mgr = AppWidgetManager.getInstance(context)
         val ids = mgr.getAppWidgetIds(ComponentName(context, StatusWidget::class.java))
         if (ids.isNotEmpty()) mgr.updateAppWidget(ids, widgetViews(context))
+        Widgets.render(context)
         try {
             TileService.requestListeningState(context, ComponentName(context, WatchTile::class.java))
         } catch (_: Exception) {
@@ -48,19 +50,17 @@ object Surfaces {
 
     fun widgetViews(context: Context): RemoteViews {
         val s = status(context)
+        val open = PendingIntent.getActivity(
+            context, 3,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         return RemoteViews(context.packageName, R.layout.widget_status).apply {
             setTextViewText(R.id.widget_title, s.title)
             setTextViewText(R.id.widget_subtitle, s.subtitle)
             setImageViewResource(R.id.widget_icon, if (s.active) R.drawable.ic_widget_active else R.drawable.ic_widget_idle)
-            setOnClickPendingIntent(R.id.widget_root, WatchService.togglePending(context))
-            setOnClickPendingIntent(
-                R.id.widget_open,
-                PendingIntent.getActivity(
-                    context, 3,
-                    Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                ),
-            )
+            setOnClickPendingIntent(R.id.widget_root, if (s.alarmOn) open else WatchService.togglePending(context))
+            setOnClickPendingIntent(R.id.widget_open, open)
         }
     }
 }
@@ -82,7 +82,8 @@ class WatchTile : TileService() {
     }
 
     override fun onClick() {
-        if (Surfaces.status(this).active) {
+        val s = Surfaces.status(this)
+        if (s.active) {
             if (WatchRepo.state.value.phase == Phase.RINGING && Prefs(this).dismissTask != DismissTask.NONE) {
                 open(Intent(this, AlarmActivity::class.java))
             } else {
@@ -90,11 +91,17 @@ class WatchTile : TileService() {
             }
             return
         }
+        val arm = Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_ARM, true)
+        if (s.alarmOn) {
+            // Будильник на час уже ввімкнено — програма спершу перепитає, чи будити після найближчого відбою.
+            open(arm)
+            return
+        }
         try {
             WatchService.arm(this)
         } catch (_: IllegalStateException) {
             // Система не дала запустити сервіс із фону — вмикаємо через програму.
-            open(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_ARM, true))
+            open(arm)
         }
     }
 

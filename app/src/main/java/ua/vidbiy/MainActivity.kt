@@ -32,6 +32,8 @@ data class Permissions(
 class MainActivity : ComponentActivity() {
     private var permissions by mutableStateOf(Permissions())
     private var bedtimeIssues by mutableStateOf(emptyList<String>())
+    private var armRequest by mutableStateOf(false)
+    private var screenRequest by mutableStateOf<String?>(null)
 
     private val notificationRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissions = readPermissions() }
@@ -90,11 +92,17 @@ class MainActivity : ComponentActivity() {
             checkUpdate = { Updater.check(this, force = true) },
             bedtimeIssues = { BedtimeCheck.issues(this) },
         )
-        handleArm(intent)
+        handleLaunch(intent)
 
         setContent {
             VidbiyTheme {
-                VidbiyApp(prefs, settings, permissions, actions, bedtimeIssues)
+                VidbiyApp(
+                    prefs, settings, permissions, actions, bedtimeIssues,
+                    armRequest = armRequest,
+                    onArmRequestSeen = { armRequest = false },
+                    screenRequest = screenRequest,
+                    onScreenRequestSeen = { screenRequest = null },
+                )
             }
         }
     }
@@ -105,22 +113,42 @@ class MainActivity : ComponentActivity() {
         permissions = readPermissions()
         bedtimeIssues = BedtimeCheck.issues(this)
         Updater.check(this)
+        Widgets.sync(this)
+        Widgets.refreshIfStale(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Місце могли змінити — віджети мають показати тривогу вже для нього.
+        Widgets.refreshIfStale(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleArm(intent)
+        handleLaunch(intent)
     }
 
-    /** Плитка чи віджет не змогли ввімкнути очікування з фону й відкрили програму. */
-    private fun handleArm(intent: Intent?) {
+    /**
+     * Віджет відкрив програму на певному екрані, або плитка чи віджет просять увімкнути очікування:
+     * не змогли з фону чи будильник на час уже ввімкнено — тоді спершу питаємо, чи справді будити
+     * одразу після відбою.
+     */
+    private fun handleLaunch(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_SCREEN)?.let {
+            intent.removeExtra(EXTRA_SCREEN)
+            screenRequest = it
+        }
         if (intent?.getBooleanExtra(EXTRA_ARM, false) != true) return
         intent.removeExtra(EXTRA_ARM)
-        if (WatchRepo.state.value.phase == Phase.IDLE) WatchService.arm(this)
+        if (WatchRepo.state.value.phase != Phase.IDLE) return
+        if (AlarmScheduler.next(Prefs(this)) != null) armRequest = true else WatchService.arm(this)
     }
 
     companion object {
         const val EXTRA_ARM = "arm"
+        const val EXTRA_SCREEN = "screen"
+        const val SCREEN_SCHEDULE = "schedule"
+        const val SCREEN_STATS = "stats"
     }
 
     /** Кнопка «Оновити»: без дозволу на встановлення спершу ведемо в системні налаштування. */

@@ -36,6 +36,7 @@
 
         <TextView
             android:id="@+id/widget_subtitle"
+            android:text="@string/widget_sample_idle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ellipsize="end"

@@ -1,5 +1,31 @@
 <resources>
     <string name="app_name">Відбій</string>
+    <string name="widget_label">Стан будильника</string>
     <string name="widget_description">Стан будильника: дотик вмикає чи вимикає очікування відбою</string>
     <string name="widget_open">Відкрити програму</string>
+    <string name="widget_refresh">Оновити</string>
+    <!-- Зразки для попереднього перегляду у списку віджетів -->
+    <string name="widget_sample_place">м. Київ</string>
+    <string name="widget_sample_idle">Торкніться, щоб чекати відбою</string>
+    <string name="widget_sample_last">Остання: сьогодні, 03:12–04:40</string>
+    <string name="widget_sample_updated">Оновлено о 07:00</string>
+    <string name="widget_sample_day">Завтра</string>
+    <string name="widget_sample_days">Будні</string>
+    <string name="widget_sample_week">7 днів: 5 год</string>
+
+    <string name="widget_alert_label">Тривога зараз</string>
+    <string name="widget_alert_description">Чи є тривога у вашому місці, відколи вона триває й коли була остання</string>
+    <string name="widget_alert_sample">Тривоги немає</string>
+
+    <string name="widget_alarm_label">Найближчий будильник</string>
+    <string name="widget_alarm_description">Коли спрацює найближчий будильник на час</string>
+    <string name="widget_alarm_caption">Будильник</string>
+    <string name="widget_alarm_sample">07:30</string>
+
+    <string name="widget_chart_label">Тривоги по днях</string>
+    <string name="widget_chart_description">Скільки тривала тривога у вашому місці кожного з останніх днів</string>
+
+    <string name="widget_panel_label">Панель</string>
+    <string name="widget_panel_description">Тривога, найближчий будильник і кнопка «Будити після найближчого відбою» в одному віджеті</string>
+    <string name="widget_panel_sample">Будити після найближчого відбою</string>
 </resources>

@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.AlarmOn
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.HourglassTop
@@ -98,8 +99,8 @@ fun GlassCard(
 
 private data class OrbStyle(val icon: ImageVector, val color: Color, val pulseMs: Int?)
 
-private fun orbStyle(phase: Phase) = when (phase) {
-    Phase.IDLE -> OrbStyle(Icons.Rounded.Bedtime, Night.Blue, null)
+private fun orbStyle(phase: Phase, alarmOn: Boolean) = when (phase) {
+    Phase.IDLE -> if (alarmOn) OrbStyle(Icons.Rounded.AlarmOn, Night.Amber, null) else OrbStyle(Icons.Rounded.Bedtime, Night.Blue, null)
     Phase.WAITING_ALERT -> OrbStyle(Icons.Rounded.Radar, Night.Blue, 2800)
     Phase.ALERT -> OrbStyle(Icons.Rounded.Campaign, Night.Red, 1800)
     Phase.CLEARING -> OrbStyle(Icons.Rounded.HourglassTop, Night.Green, 2400)
@@ -107,9 +108,16 @@ private fun orbStyle(phase: Phase) = when (phase) {
     Phase.SNOOZED -> OrbStyle(Icons.Rounded.Snooze, Night.Amber, 2800)
 }
 
+/** [alarmOn] — увімкнено будильник на час: у спокої коло показує його, а не місяць. */
 @Composable
-fun StatusOrb(phase: Phase, size: Dp = 208.dp, onClick: (() -> Unit)? = null, clickLabel: String? = null) {
-    val style = orbStyle(phase)
+fun StatusOrb(
+    phase: Phase,
+    size: Dp = 208.dp,
+    onClick: (() -> Unit)? = null,
+    clickLabel: String? = null,
+    alarmOn: Boolean = false,
+) {
+    val style = orbStyle(phase, alarmOn)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "orbPress")

@@ -284,7 +284,8 @@ private fun TourStep(onDone: () -> Unit) {
         TourPage(
             "Або звичайний будильник",
             "Поставте час, наприклад 07:30, — можна кілька, на різні дні й навіть для іншого міста. " +
-                "Якщо тоді тривоги немає, будильник задзвонить як звичайний, а якщо триває — розбудить після відбою.",
+                "Якщо тоді тривоги немає, будильник задзвонить як звичайний, а якщо триває — розбудить після відбою. " +
+                "Він спрацює сам: торкатися місяця для цього не потрібно.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
                 DemoTile(Icons.Rounded.Alarm, "Будні", "07:30", Modifier.fillMaxWidth())
@@ -332,11 +333,12 @@ private fun TourStep(onDone: () -> Unit) {
         },
         TourPage(
             "Під рукою",
-            "Додайте плитку «Відбій» у швидкі налаштування або віджет на головний екран, щоб вмикати очікування одним дотиком. " +
+            "Додайте плитку «Відбій» у швидкі налаштування або віджети на головний екран: тривога зараз, найближчий будильник, " +
+                "тривоги по днях чи панель з усім одразу. " +
                 "Перед сном програма нагадає, якщо заряд низький чи немає інтернету.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.widthIn(max = 360.dp)) {
-                DemoTile(Icons.Rounded.Widgets, "Віджет і плитка", "Чекаю на тривогу", Modifier.fillMaxWidth())
+                DemoTile(Icons.Rounded.Widgets, "Віджети й плитка", "Тривоги немає · 07:30", Modifier.fillMaxWidth())
                 DemoTile(Icons.Rounded.BatteryAlert, "Перед сном", "Заряд 12 %", Modifier.fillMaxWidth())
             }
         },
@@ -400,7 +402,7 @@ private fun TourStep(onDone: () -> Unit) {
 }
 
 @Composable
-fun TouchHint(text: String) {
+fun TouchHint(text: String, icon: ImageVector = Icons.Rounded.TouchApp) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -408,7 +410,7 @@ fun TouchHint(text: String) {
             .background(Night.Amber.copy(alpha = 0.12f))
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
-        Icon(Icons.Rounded.TouchApp, contentDescription = null, tint = Night.Amber, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = Night.Amber, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = Night.Amber)
     }

@@ -211,6 +211,7 @@ class WatchService : Service() {
                 val result = withContext(Dispatchers.IO) { AlertsApi.fetch(prefs.source, region, prefs.token) }
                 when (result) {
                     is ApiResult.Ok -> {
+                        Widgets.noteStatus(this@WatchService, region, result.status)
                         lastOk = System.currentTimeMillis()
                         offlineNoted = false
                         val via = result.source.title

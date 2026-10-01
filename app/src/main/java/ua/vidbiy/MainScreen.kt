@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Schedule
@@ -43,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -298,6 +301,12 @@ fun VidbiyApp(
     permissions: Permissions,
     actions: Actions,
     bedtimeIssues: List<String>,
+    /** Плитка чи віджет просять увімкнути очікування відбою, хоча будильник на час уже ввімкнено. */
+    armRequest: Boolean = false,
+    onArmRequestSeen: () -> Unit = {},
+    /** Віджет відкрив програму на певному екрані: [MainActivity.SCREEN_SCHEDULE] чи [MainActivity.SCREEN_STATS]. */
+    screenRequest: String? = null,
+    onScreenRequestSeen: () -> Unit = {},
 ) {
     val state by WatchRepo.state.collectAsStateWithLifecycle()
     var onboarded by remember { mutableStateOf(prefs.onboarded) }
@@ -314,6 +323,10 @@ fun VidbiyApp(
         val issues = if (settings.bedtimeCheck) actions.bedtimeIssues() else emptyList()
         if (issues.isEmpty()) actions.arm() else bedtimeWarning = issues
     }
+    // З увімкненим будильником на час дотик легко сприйняти як «увімкнути будильник», а очікування
+    // відбою будить, щойно закінчиться тривога, — навіть уночі. Тож спершу пояснюємо різницю.
+    var confirmArm by remember { mutableStateOf(false) }
+    val armFromHome = { if (settings.nextAlarm != null) confirmArm = true else armChecked() }
 
     var tourSeen by remember { mutableStateOf(prefs.tourVersion >= TOUR_VERSION) }
 
@@ -359,6 +372,23 @@ fun VidbiyApp(
             }
             Screen.HISTORY, Screen.DISMISS, Screen.STATS -> Screen.SETTINGS
             else -> Screen.HOME
+        }
+    }
+    LaunchedEffect(screenRequest) {
+        when (screenRequest) {
+            MainActivity.SCREEN_SCHEDULE -> {
+                editingAlarm = null
+                scheduleReturn = Screen.HOME
+                screen = Screen.SCHEDULE
+            }
+            MainActivity.SCREEN_STATS -> screen = Screen.STATS
+        }
+        if (screenRequest != null) onScreenRequestSeen()
+    }
+    LaunchedEffect(armRequest) {
+        if (armRequest) {
+            onArmRequestSeen()
+            if (state.phase == Phase.IDLE) armFromHome()
         }
     }
     val openDialog: (AppDialog) -> Unit = {
@@ -444,7 +474,7 @@ fun VidbiyApp(
                     settings = settings,
                     permissions = permissions,
                     actions = actions,
-                    onArm = armChecked,
+                    onArm = armFromHome,
                     bedtimeIssues = bedtimeIssues.takeIf { settings.bedtimeCheck && settings.anyAlarmEnabled }.orEmpty(),
                     onOpenSettings = { screen = Screen.SETTINGS },
                     onDialog = openDialog,
@@ -504,6 +534,28 @@ fun VidbiyApp(
 
         AppDialog.REGION, AppDialog.SOUND, AppDialog.SCHEDULE, AppDialog.RULES, AppDialog.HISTORY, AppDialog.TOUR,
         AppDialog.DISMISS, AppDialog.WEBHOOKS, AppDialog.STATS, null -> Unit
+    }
+
+    if (confirmArm) {
+        val alarm = settings.nextAlarm?.let { "Будильник о ${AlarmScheduler.formatTime(it)}" } ?: "Будильник на час"
+        AlertDialog(
+            onDismissRequest = { confirmArm = false },
+            title = { Text("Будити після найближчого відбою?") },
+            text = {
+                Text(
+                    "$alarm вже ввімкнено й спрацює сам.\n\n" +
+                        "Це окремий режим: сигнал пролунає, щойно закінчиться тривога, — навіть уночі, раніше за будильник.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmArm = false
+                    armChecked()
+                }) { Text("Увімкнути") }
+            },
+            dismissButton = { TextButton(onClick = { confirmArm = false }) { Text("Скасувати") } },
+        )
     }
 
     bedtimeWarning?.let { issues ->
@@ -588,9 +640,11 @@ private fun HomeScreen(
                 }
             }
 
+            // Будильник на час уже ввімкнено: коло показує це, а не кличе торкнутися.
+            val alarmOn = idle && permissions.notifications && settings.nextAlarm != null
             val (onOrb, hint) = when {
                 idle && !permissions.notifications -> actions.requestNotifications to "Торкніться, щоб дозволити сповіщення"
-                idle && settings.anyAlarmEnabled -> onArm to "Торкніться, щоб чекати відбою зараз"
+                alarmOn -> onArm to "Будити після найближчого відбою"
                 idle -> onArm to "Торкніться, щоб увімкнути"
                 state.phase == Phase.RINGING || state.phase == Phase.SNOOZED -> actions.stop to "Торкніться, щоб вимкнути"
                 else -> actions.stop to "Торкніться, щоб скасувати"
@@ -600,6 +654,7 @@ private fun HomeScreen(
                 onOrb,
                 hint,
                 settings.nextAlarm?.let { AlarmScheduler.formatTime(it) to AlarmScheduler.describeAt(it) },
+                alarmOn = alarmOn,
                 modifier = Modifier.padding(vertical = 24.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -677,6 +732,8 @@ private fun Hero(
     hint: String,
     /** Час будильника на час і коли він спрацює, якщо його увімкнено. */
     schedule: Pair<String, String>?,
+    /** Будильник на час увімкнено й нічого не триває: дотик вмикає окремий режим «після відбою». */
+    alarmOn: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val title = when (state.phase) {
@@ -696,9 +753,9 @@ private fun Hero(
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier.fillMaxWidth()) {
-        StatusOrb(state.phase, size = 240.dp, onClick = onOrbClick, clickLabel = hint)
+        StatusOrb(state.phase, size = 240.dp, onClick = onOrbClick, clickLabel = hint, alarmOn = alarmOn)
         Spacer(Modifier.height(12.dp))
-        TouchHint(hint)
+        if (alarmOn) TouchHint("Увімкнено, спрацює сам", Icons.Rounded.Check) else TouchHint(hint)
         Spacer(Modifier.height(20.dp))
         Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
@@ -709,6 +766,14 @@ private fun Hero(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 340.dp),
         )
+        if (alarmOn) {
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onOrbClick) {
+                Icon(Icons.Rounded.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(hint)
+            }
+        }
         if (state.phase != Phase.IDLE && state.source.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             val time = DateTimeFormatter.ofPattern("HH:mm:ss")

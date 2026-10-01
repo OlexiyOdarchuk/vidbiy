@@ -64,7 +64,7 @@
         <receiver
             android:name=".StatusWidget"
             android:exported="false"
-            android:label="@string/app_name">
+            android:label="@string/widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -72,6 +72,60 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_status" />
         </receiver>
+
+        <receiver
+            android:name=".AlertWidget"
+            android:exported="false"
+            android:label="@string/widget_alert_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_alert" />
+        </receiver>
+
+        <receiver
+            android:name=".AlarmWidget"
+            android:exported="false"
+            android:label="@string/widget_alarm_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_alarm" />
+        </receiver>
+
+        <receiver
+            android:name=".ChartWidget"
+            android:exported="false"
+            android:label="@string/widget_chart_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_chart" />
+        </receiver>
+
+        <receiver
+            android:name=".PanelWidget"
+            android:exported="false"
+            android:label="@string/widget_panel_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_panel" />
+        </receiver>
+
+        <!-- Оновлює дані для віджетів: стан тривоги та її історію -->
+        <service
+            android:name=".WidgetJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <service
             android:name=".WatchTile"
