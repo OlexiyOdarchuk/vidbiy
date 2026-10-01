@@ -3,9 +3,10 @@
 Будильник, що спрацьовує після відбою повітряної тривоги. Тривога застала під час сну? Торкніться місяця й спіть далі: щойно у вашій області, районі чи громаді настане відбій, пролунає гучний будильник. Зручно, наприклад, щоб не проспати онлайн-пару після тривоги.
 
 <p align="center">
-  <img src="docs/screenshots/home.png" width="220" alt="Головний екран: будильник вимкнено">
-  <img src="docs/screenshots/alert.png" width="220" alt="Триває тривога, будильник чекає на відбій">
-  <img src="docs/screenshots/alarm.png" width="220" alt="Будильник після відбою">
+  <img src="docs/screenshots/home.png" width="200" alt="Головний екран: будильник вимкнено">
+  <img src="docs/screenshots/home-alarm.png" width="200" alt="Головний екран: будильник на час увімкнено">
+  <img src="docs/screenshots/alert.png" width="200" alt="Триває тривога, будильник чекає на відбій">
+  <img src="docs/screenshots/alarm.png" width="200" alt="Сигнал будильника">
 </p>
 
 <p align="center">
@@ -68,9 +69,15 @@
 <p align="center">
   <img src="docs/screenshots/welcome.png" width="160" alt="Привітання">
   <img src="docs/screenshots/permissions.png" width="160" alt="Дозволи">
-  <img src="docs/screenshots/region.png" width="160" alt="Вибір району">
+  <img src="docs/screenshots/region.png" width="160" alt="Вибір місця">
   <img src="docs/screenshots/sounds.png" width="160" alt="Вибір звуку">
   <img src="docs/screenshots/settings.png" width="160" alt="Налаштування">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/schedule.png" width="160" alt="Будильники на час">
+  <img src="docs/screenshots/rules.png" width="160" alt="Правила нічної тривоги">
+  <img src="docs/screenshots/stats.png" width="160" alt="Статистика тривог">
 </p>
 
 <p align="center">
