@@ -68,4 +68,14 @@ class NightRulesTest {
         val r = NightRules.evaluate(listOf(atNine.copy(enabled = false)), base, listOf(t(29, 2)..t(29, 3)), zone)
         assertEquals(RuleOutcome.None, r)
     }
+
+    @Test
+    fun ongoingAlertStartsWhereMergedIntervalStarts() {
+        val now = t(29, 7, 30)
+        // Область і громада перекриваються: тривога триває від початку найранішої.
+        val history = listOf(t(27, 1)..t(27, 2), t(28, 5)..t(28, 9), t(28, 8)..now)
+        assertEquals(t(28, 5), NightRules.ongoingSince(history, now))
+        assertEquals(null, NightRules.ongoingSince(listOf(t(27, 1)..t(27, 2)), now))
+        assertEquals(null, NightRules.ongoingSince(emptyList(), now))
+    }
 }

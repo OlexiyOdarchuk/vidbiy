@@ -12,8 +12,8 @@ android {
         applicationId = "ua.vidbiy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.6"
+        versionCode = 10
+        versionName = "1.7"
     }
 
     buildTypes {

@@ -26,6 +26,9 @@ class WatchService : Service() {
     private var job: Job? = null
     private var scheduleJob: Job? = null
     private var sunriseJob: Job? = null
+    private var ringJob: Job? = null
+    /** Скільки сигналів поспіль лишилися без відповіді. */
+    private var unanswered = 0
     private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var prefs: Prefs
     private lateinit var player: AlarmPlayer
@@ -199,6 +202,7 @@ class WatchService : Service() {
             var phase = if (prefs.sawAlert) Phase.ALERT else Phase.WAITING_ALERT
             var lastStatus: AlertStatus? = null
             var clearSince = 0L
+            var alertSince = 0L
             var offlineNoted = false
 
             while (isActive) {
@@ -237,6 +241,18 @@ class WatchService : Service() {
                             clearSince = 0L
                             prefs.sawAlert = true
                             phase = Phase.ALERT
+                            // Тривога, що не закінчується добами, не має тримати будильник на час вічно.
+                            if (prefs.scheduleRun) {
+                                if (alertSince == 0L) {
+                                    val seenAt = System.currentTimeMillis()
+                                    alertSince = withContext(Dispatchers.IO) { NightRules.history(region) }
+                                        ?.let { NightRules.ongoingSince(it, seenAt) } ?: seenAt
+                                }
+                                if (System.currentTimeMillis() - alertSince >= LONG_ALERT_MS) {
+                                    ring("Будильник о ${prefs.scheduleLabel}: тривога триває понад добу")
+                                    return@launch
+                                }
+                            }
                             val text = when {
                                 prefs.scheduleRun && partial ->
                                     "Будильник о ${prefs.scheduleLabel} чекає: тривога в частині регіону. Розбудить після відбою в усьому регіоні."
@@ -248,6 +264,7 @@ class WatchService : Service() {
                             }
                             update(phase, text, via)
                         } else if (prefs.sawAlert) {
+                            alertSince = 0L
                             val now = System.currentTimeMillis()
                             if (clearSince == 0L) {
                                 clearSince = now
@@ -330,21 +347,44 @@ class WatchService : Service() {
             a.start(scope, reason)
         }
         startActivity(Intent(this, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        ringJob?.cancel()
+        ringJob = scope.launch {
+            delay(RING_MAX_MS)
+            ringUnanswered()
+        }
     }
 
-    private fun snooze() {
+    /** Сигнал ніхто не вимкнув і не відклав: відкладаємо самі, а після кількох спроб замовкаємо. */
+    private fun ringUnanswered() {
+        ringJob = null
+        if (WatchRepo.state.value.phase != Phase.RINGING) return
+        when {
+            testing -> finish(null)
+            unanswered < AUTO_SNOOZES -> {
+                unanswered++
+                snooze(auto = true)
+            }
+            else -> finish("Будильник пропущено: сигнал лунав ${AUTO_SNOOZES + 1} рази й вимкнувся без відповіді", "missed")
+        }
+    }
+
+    private fun snooze(auto: Boolean = false) {
         val state = WatchRepo.state.value
         if (state.phase != Phase.RINGING) {
             if (job == null) stopSelf()
             return
         }
+        ringJob?.cancel()
+        ringJob = null
+        if (!auto) unanswered = 0
         player.stop()
         announcer?.stop()
         nm.cancel(Notifications.ID_ALARM)
         nm.cancel(Notifications.ID_WEAR)
         val at = System.currentTimeMillis() + SNOOZE_MS
         val text = "Повторний сигнал о ${formatTime(at)}"
-        History.add(this, "Відкладено до ${formatTime(at)}", "snooze")
+        if (auto) History.add(this, "Сигнал без відповіді, повтор о ${formatTime(at)}", "auto_snooze")
+        else History.add(this, "Відкладено до ${formatTime(at)}", "snooze")
         WatchRepo.set(WatchState(Phase.SNOOZED, text, state.reason))
         nm.notify(Notifications.ID_WATCH, Notifications.watch(this, text))
         job?.cancel()
@@ -354,9 +394,12 @@ class WatchService : Service() {
         }
     }
 
-    private fun finish(message: String?) {
+    private fun finish(message: String?, type: String = "cutoff") {
         job?.cancel()
         job = null
+        ringJob?.cancel()
+        ringJob = null
+        unanswered = 0
         val wasActive = !testing && (prefs.armed || WatchRepo.state.value.phase != Phase.IDLE)
         testing = false
         player.stop()
@@ -369,7 +412,7 @@ class WatchService : Service() {
         prefs.scheduleRun = false
         val place = (prefs.runPlace ?: prefs.region).name
         prefs.runPlace = null
-        History.end(this, message ?: "Вимкнено", if (message != null) "cutoff" else "stop")
+        History.end(this, message ?: "Вимкнено", if (message != null) type else "stop")
         if (wasActive) Webhooks.fire(this, HookEvent.STOP, place, message ?: "Вимкнено")
         WatchRepo.set(WatchState(Phase.IDLE, message ?: ""))
         if (message != null) nm.notify(Notifications.ID_INFO, Notifications.info(this, message))
@@ -441,6 +484,9 @@ class WatchService : Service() {
 
         private const val POLL_MS = 20_000L
         private const val SNOOZE_MS = 5 * 60_000L
+        private const val RING_MAX_MS = 10 * 60_000L
+        private const val AUTO_SNOOZES = 2
+        private const val LONG_ALERT_MS = 24 * 60 * 60_000L
         private const val NO_CONNECTION_MS = 5 * 60_000L
         private const val SCHEDULE_CHECK_MS = 60_000L
         private const val SCHEDULE_COVERS_MS = 24 * 60 * 60_000L

@@ -8,7 +8,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
 
-/** [type] — для статистики: armed, scheduled, alert, clear, ring, snooze, stop, cutoff, shift, skip, offline. */
+/** [type] — для статистики: armed, scheduled, alert, clear, ring, snooze, auto_snooze, stop, cutoff, missed, shift, skip, offline. */
 data class HistoryEvent(val at: Long, val text: String, val type: String? = null)
 
 /** Сеанс — від увімкнення очікування чи спрацювання будильника на час до вимкнення. */

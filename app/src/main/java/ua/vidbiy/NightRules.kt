@@ -77,6 +77,10 @@ object NightRules {
         return out
     }
 
+    /** Початок тривоги, яка за історією ще триває на момент [now]; null — такої в історії немає. */
+    fun ongoingSince(history: List<LongRange>, now: Long): Long? =
+        merge(history).lastOrNull()?.takeIf { it.last >= now }?.first
+
     /**
      * Тривоги за останні дні для місця та всього, що його охоплює (район, область).
      * null — історію не вдалося отримати; тоді правила не застосовуються.

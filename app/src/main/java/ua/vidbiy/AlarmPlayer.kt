@@ -2,6 +2,7 @@ package ua.vidbiy
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Build
@@ -25,6 +26,11 @@ class AlarmPlayer(private val context: Context) {
     private val attrs = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ALARM)
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+
+    // Музика чи білий шум на час сигналу стають на паузу; сигнал лунає, навіть якщо фокус не дали.
+    private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        .setAudioAttributes(attrs)
         .build()
 
     private var player: MediaPlayer? = null
@@ -57,6 +63,7 @@ class AlarmPlayer(private val context: Context) {
             savedVolume = -1
         }
 
+        audio.requestAudioFocus(focus)
         player = createPlayer()
         ramp = scope.launch {
             for (step in 0..RAMP_STEPS) {
@@ -81,6 +88,7 @@ class AlarmPlayer(private val context: Context) {
             release()
         }
         player = null
+        audio.abandonAudioFocusRequest(focus)
         vibrator.cancel()
         if (savedVolume >= 0) {
             try {
@@ -91,15 +99,25 @@ class AlarmPlayer(private val context: Context) {
         }
     }
 
-    private fun createPlayer(): MediaPlayer? {
+    private fun createPlayer(from: Int = 0): MediaPlayer? {
         // Якщо обраний звук не відкрився (файл видалили, мелодію прибрали), звучить запасний.
-        for (uri in Sounds.candidates(context, Prefs(context))) {
+        val candidates = Sounds.candidates(context, Prefs(context))
+        for (i in from until candidates.size) {
             val mp = MediaPlayer()
             try {
                 mp.setAudioAttributes(attrs)
-                mp.setDataSource(context, uri)
+                mp.setDataSource(context, candidates[i])
                 mp.isLooping = true
                 mp.setVolume(MIN_VOLUME, MIN_VOLUME)
+                // Звук обірвався посеред сигналу — переходимо до наступного, а не мовчимо.
+                mp.setOnErrorListener { failed, _, _ ->
+                    if (player === failed) {
+                        failed.release()
+                        player = createPlayer(i + 1)
+                        applyVolume()
+                    }
+                    true
+                }
                 mp.prepare()
                 mp.start()
                 return mp
